@@ -1,8 +1,31 @@
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Download, TrendingUp } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { attendanceAPI } from '../api/attendanceAPI';
 
 export const MyAttendance = () => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['myAttendances'],
+    queryFn: attendanceAPI.getMyAttendances,
+  });
+
+  const courseAttendances = useMemo(() => {
+    if (!data) return [];
+    return Array.isArray(data) ? data : data.attendances || [];
+  }, [data]);
+
+  const totalCourses = courseAttendances.length;
+  const attendedCourses = courseAttendances.filter((course) => (course.attended || 0) > 0).length;
+  const absentCourses = Math.max(totalCourses - attendedCourses, 0);
+  const averageAttendance = totalCourses
+    ? Math.round(
+        courseAttendances.reduce((sum, course) => sum + Number(course.attendance_percentage || 0), 0) /
+          totalCourses
+      )
+    : 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -17,13 +40,15 @@ export const MyAttendance = () => {
         </Button>
       </div>
 
+      {isLoading && <div className="text-sm text-gray-500">Yoklama verileri yükleniyor...</div>}
+
       {/* Overall Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 mb-2">Toplam Dersler</p>
-              <p className="text-3xl font-bold text-gray-900">32</p>
+              <p className="text-3xl font-bold text-gray-900">{totalCourses}</p>
             </div>
             <div className="p-3 rounded-lg bg-blue-50">
               <TrendingUp size={24} className="text-blue-600" />
@@ -35,8 +60,8 @@ export const MyAttendance = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 mb-2">Katıldığım Dersler</p>
-              <p className="text-3xl font-bold text-green-600">27</p>
-              <p className="text-xs text-gray-500 mt-1">84.4%</p>
+              <p className="text-3xl font-bold text-green-600">{attendedCourses}</p>
+              <p className="text-xs text-gray-500 mt-1">{averageAttendance}%</p>
             </div>
             <div className="p-3 rounded-lg bg-green-50">
               <div className="text-2xl">✓</div>
@@ -48,8 +73,8 @@ export const MyAttendance = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 mb-2">Devamsızlıklar</p>
-              <p className="text-3xl font-bold text-red-600">5</p>
-              <p className="text-xs text-gray-500 mt-1">15.6%</p>
+              <p className="text-3xl font-bold text-red-600">{absentCourses}</p>
+              <p className="text-xs text-gray-500 mt-1">{Math.max(100 - averageAttendance, 0)}%</p>
             </div>
             <div className="p-3 rounded-lg bg-red-50">
               <div className="text-2xl">✕</div>
@@ -62,46 +87,56 @@ export const MyAttendance = () => {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Derslere Göre Yoklama Detayları</h2>
         <div className="space-y-4">
-          {courseAttendances.map((course) => (
-            <Card key={course.id}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-gray-900">{course.name}</h3>
-                  <p className="text-sm text-gray-600">{course.code}</p>
-                </div>
-                <div className="text-right">
-                  <div className={`text-2xl font-bold ${getPercentageColor(course.percentage)}`}>
-                    {course.percentage}%
-                  </div>
-                  <p className="text-xs text-gray-500">{course.attended}/{course.total}</p>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                <div
-                  className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(course.percentage)}`}
-                  style={{ width: `${course.percentage}%` }}
-                />
-              </div>
-
-              {/* Details */}
-              <div className="grid grid-cols-3 gap-4 text-xs text-gray-600 pt-3 border-t border-gray-100">
-                <div>
-                  <span className="text-green-600 font-semibold">{course.attended}</span>
-                  {' '}Katıldı
-                </div>
-                <div>
-                  <span className="text-red-600 font-semibold">{course.total - course.attended}</span>
-                  {' '}Devamsız
-                </div>
-                <div className="text-right">
-                  <span className="font-semibold">{course.total}</span>
-                  {' '}Toplam
-                </div>
-              </div>
+          {courseAttendances.length === 0 ? (
+            <Card>
+              <p className="text-sm text-gray-500">Henüz ders kaydı bulunamadı.</p>
             </Card>
-          ))}
+          ) : (
+            courseAttendances.map((course) => {
+              const percentage = Number(course.attendance_percentage || 0);
+              const attended = Number(course.attended || 0);
+              const total = Number(course.total_sessions || 0);
+
+              return (
+                <Card key={course.course_id}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-900">{course.course_name}</h3>
+                      <p className="text-sm text-gray-600">{course.course_code}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-2xl font-bold ${getPercentageColor(percentage)}`}>
+                        {percentage}%
+                      </div>
+                      <p className="text-xs text-gray-500">{attended}/{total}</p>
+                    </div>
+                  </div>
+
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(percentage)}`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-xs text-gray-600 pt-3 border-t border-gray-100">
+                    <div>
+                      <span className="text-green-600 font-semibold">{attended}</span>
+                      {' '}Katıldı
+                    </div>
+                    <div>
+                      <span className="text-red-600 font-semibold">{Math.max(total - attended, 0)}</span>
+                      {' '}Devamsız
+                    </div>
+                    <div className="text-right">
+                      <span className="font-semibold">{total}</span>
+                      {' '}Toplam
+                    </div>
+                  </div>
+                </Card>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -138,11 +173,3 @@ const getProgressColor = (percentage) => {
   return 'bg-red-500';
 };
 
-const courseAttendances = [
-  { id: 1, name: 'Yazılım Mimarisi', code: 'CS301', attended: 9, total: 10, percentage: 90 },
-  { id: 2, name: 'Veri Tabanları', code: 'CS302', attended: 8, total: 10, percentage: 80 },
-  { id: 3, name: 'Web Geliştirme', code: 'CS303', attended: 6, total: 10, percentage: 60 },
-  { id: 4, name: 'Mobil Programlama', code: 'CS304', attended: 4, total: 9, percentage: 44 },
-  { id: 5, name: 'İşletim Sistemleri', code: 'CS305', attended: 7, total: 10, percentage: 70 },
-  { id: 6, name: 'Bilgisayar Ağları', code: 'CS306', attended: 8, total: 10, percentage: 80 },
-];

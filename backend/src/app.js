@@ -17,7 +17,11 @@ fs.mkdirSync(path.join(__dirname, '../../uploads/avatars'), { recursive: true })
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://online-qr-yoklama.vercel.app'
+  ],
   credentials: true
 }));
 

@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 
 export const Login = () => {
-  const [email, setEmail] = useState('admin@school.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, isAuthenticated, user } = useAuth();
@@ -71,7 +70,7 @@ export const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#10B981] focus:border-transparent outline-none transition-all"
-                placeholder="admin@school.com"
+                placeholder="Email adresinizi girin"
                 required
               />
             </div>
@@ -101,15 +100,6 @@ export const Login = () => {
               {isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-xs text-gray-600 mb-2"><span className="font-semibold">Demo Hesapları:</span></p>
-            <ul className="text-xs text-gray-600 space-y-1">
-              <li>👤 <span className="font-mono">admin@school.com</span> / <span className="font-mono">password</span></li>
-              <li>👨‍🏫 <span className="font-mono">teacher@school.com</span> / <span className="font-mono">password</span></li>
-              <li>📚 <span className="font-mono">student@school.com</span> / <span className="font-mono">password</span></li>
-            </ul>
-          </div>
         </Card>
       </div>
     </div>

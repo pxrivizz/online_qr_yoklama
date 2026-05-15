@@ -10,6 +10,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../hooks/useAuth';
 import { sessionAPI } from '../api/sessionAPI';
 import { courseAPI } from '../api/courseAPI';
+import { attendanceAPI } from '../api/attendanceAPI';
 
 export const Dashboard = () => {
   const { user } = useAuth();
@@ -168,9 +169,9 @@ export const Dashboard = () => {
     setIsQrModalOpen(false);
   };
 
-  if (isStudent) {
-    return <StudentDashboard />;
-  }
+    if (isStudent) {
+      return <StudentDashboard />;
+    }
 
   // Teacher/Admin Dashboard
   return (
@@ -358,69 +359,94 @@ const StatCard = ({ icon, label, value, color, iconColor }) => (
   </div>
 );
 
-const StudentDashboard = () => (
-  <div className="space-y-8">
-    <div>
-      <h1 className="text-4xl font-bold text-gray-900 mb-2">Akademik Performans</h1>
-      <p className="text-gray-600">Yoklama durumunuzu ve katılım oranınızı görebilirsiniz</p>
-    </div>
+const StudentDashboard = () => {
+  const { data: attendanceData, isLoading } = useQuery({
+    queryKey: ['myAttendances'],
+    queryFn: attendanceAPI.getMyAttendances,
+  });
 
-    {/* Attendance Stats */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <StatCard
-        icon={<CheckCircle2 className="w-8 h-8" />}
-        label="Katıldığım Dersler"
-        value="32"
-        color="bg-green-50"
-        iconColor="text-green-600"
-      />
-      <StatCard
-        icon={<BarChart3 className="w-8 h-8" />}
-        label="Ortalama Katılım"
-        value="85%"
-        color="bg-blue-50"
-        iconColor="text-blue-600"
-      />
-    </div>
+  const myAttendances = useMemo(() => {
+    if (!attendanceData) return [];
+    return Array.isArray(attendanceData) ? attendanceData : attendanceData.attendances || [];
+  }, [attendanceData]);
 
-    {/* Course Attendance List */}
-    <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Derslere Göre Yoklama</h2>
-      <div className="space-y-4">
-        {studentCourses.map((course) => (
-          <div key={course.id} className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">{course.name}</h3>
-                <p className="text-sm text-gray-600">{course.code}</p>
-              </div>
-              <div className={`text-lg font-bold ${course.percentage >= 70 ? 'text-green-600' : course.percentage >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                {course.percentage}%
-              </div>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  course.percentage >= 70
-                    ? 'bg-green-500'
-                    : course.percentage >= 60
-                    ? 'bg-yellow-500'
-                    : 'bg-red-500'
-                }`}
-                style={{ width: `${course.percentage}%` }}
-              />
-            </div>
-            <p className="text-sm text-gray-600">{course.attended}/{course.total} derse katıldınız</p>
-          </div>
-        ))}
+  const attendedCoursesCount = myAttendances.filter((course) => (course.attended || 0) > 0).length;
+  const averageAttendance = myAttendances.length
+    ? Math.round(
+        myAttendances.reduce((sum, course) => sum + Number(course.attendance_percentage || 0), 0) /
+          myAttendances.length
+      )
+    : 0;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="text-sm text-gray-500">Yükleniyor...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">Akademik Performans</h1>
+        <p className="text-gray-600">Yoklama durumunuzu ve katılım oranınızı görebilirsiniz</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <StatCard
+          icon={<CheckCircle2 className="w-8 h-8" />}
+          label="Katıldığım Dersler"
+          value={String(attendedCoursesCount)}
+          color="bg-green-50"
+          iconColor="text-green-600"
+        />
+        <StatCard
+          icon={<BarChart3 className="w-8 h-8" />}
+          label="Ortalama Katılım"
+          value={`${averageAttendance}%`}
+          color="bg-blue-50"
+          iconColor="text-blue-600"
+        />
+      </div>
+
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Derslere Göre Yoklama</h2>
+        <div className="space-y-4">
+          {myAttendances.length === 0 ? (
+            <div className="card text-sm text-gray-500">Henüz ders kaydı bulunamadı.</div>
+          ) : (
+            myAttendances.map((course) => {
+              const percentage = Number(course.attendance_percentage || 0);
+              const attended = Number(course.attended || 0);
+              const total = Number(course.total_sessions || 0);
+
+              return (
+                <div key={course.course_id} className="card">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">{course.course_name}</h3>
+                      <p className="text-sm text-gray-600">{course.course_code}</p>
+                    </div>
+                    <div className={`text-lg font-bold ${percentage >= 70 ? 'text-green-600' : percentage >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {percentage}%
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        percentage >= 70 ? 'bg-green-500' : percentage >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600">{attended}/{total} derse katıldınız</p>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
-
-const studentCourses = [
-  { id: 1, name: 'Yazılım Mimarisi', code: 'CS301', attended: 9, total: 10, percentage: 90 },
-  { id: 2, name: 'Veri Tabanları', code: 'CS302', attended: 8, total: 10, percentage: 80 },
-  { id: 3, name: 'Web Geliştirme', code: 'CS303', attended: 6, total: 10, percentage: 60 },
-  { id: 4, name: 'Mobil Programlama', code: 'CS304', attended: 5, total: 10, percentage: 50 },
-];
+  );
+};
