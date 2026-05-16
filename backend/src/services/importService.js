@@ -1,5 +1,5 @@
 const XLSX = require('xlsx');
-const bcrypt = require('bcryptjs');
+
 
 const parseEnrollmentExcel = (buffer) => {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
@@ -85,7 +85,6 @@ const importEnrollmentFromExcel = async (buffer, courseId, pool) => {
 
   for (const student of students) {
     try {
-      // Step 1 — Find or create user:
       const findResult = await pool.query(
         'SELECT id FROM users WHERE student_number = $1',
         [student.student_number]
@@ -93,27 +92,23 @@ const importEnrollmentFromExcel = async (buffer, courseId, pool) => {
 
       let studentId;
       if (findResult.rows.length > 0) {
-        // Student exists
         studentId = findResult.rows[0].id;
         existing_count++;
       } else {
-        // Create new student
-        const passwordHash = await bcrypt.hash(student.student_number, 10);
         const email = `${student.student_number}@posta.mu.edu.tr`;
         const name = student.full_name;
-        
+
         const insertResult = await pool.query(
-          `INSERT INTO users (name, email, password_hash, role, student_number)
+          `INSERT INTO users (name, email, password, role, student_number)
            VALUES ($1, $2, $3, 'student', $4)
            ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
            RETURNING id`,
-          [name, email, passwordHash, student.student_number]
+          [name, email, student.student_number, student.student_number]
         );
         studentId = insertResult.rows[0].id;
         created_count++;
       }
 
-      // Step 2 — Enroll in course:
       await pool.query(
         `INSERT INTO course_students (course_id, student_id, is_mandatory)
          VALUES ($1, $2, $3)

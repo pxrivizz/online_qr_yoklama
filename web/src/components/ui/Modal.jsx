@@ -6,6 +6,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     sm: 'max-w-sm',
     md: 'max-w-md',
     lg: 'max-w-lg',
+    xl: 'max-w-xl',
   };
 
   useEffect(() => {
@@ -27,26 +28,35 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
       role="presentation"
     >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-fade-in" />
+
+      {/* Modal Content */}
       <div
-        className={`bg-white rounded-xl shadow-lg p-6 ${sizeClasses[size]} w-full mx-4`}
+        className={`relative bg-white rounded-2xl shadow-[0_20px_60px_-10px_rgb(0_0_0/0.15)] ${sizeClasses[size]} w-full mx-4 animate-scale-in overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
       >
-        <div className="flex items-center justify-between mb-4">
-          {title && <h2 className="text-xl font-bold text-gray-900">{title}</h2>}
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4">
+          {title && <h2 className="text-xl font-bold text-slate-900 tracking-tight">{title}</h2>}
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 -m-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-200"
             aria-label="Close modal"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
-        {children}
+
+        {/* Body */}
+        <div className="px-6 pb-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
+          {children}
+        </div>
       </div>
     </div>
   );

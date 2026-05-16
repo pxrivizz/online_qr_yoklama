@@ -411,7 +411,7 @@ export const Users = () => {
               <button
                 type="button"
                 onClick={() => handleOpenEdit(row)}
-                className="h-9 w-9 rounded-lg border border-gray-200 hover:bg-blue-50 text-blue-600"
+                className="h-9 w-9 rounded-xl border border-slate-200 hover:bg-sky-50 hover:border-sky-200 text-sky-600 transition-all duration-200 inline-flex items-center justify-center"
                 aria-label="Edit user"
               >
                 <Edit2 size={16} className="mx-auto" />
@@ -422,7 +422,7 @@ export const Users = () => {
                   setSelectedUser(row);
                   setIsDeleteOpen(true);
                 }}
-                className="h-9 w-9 rounded-lg border border-gray-200 hover:bg-red-50 text-red-600"
+                className="h-9 w-9 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-500 transition-all duration-200 inline-flex items-center justify-center"
                 aria-label="Delete user"
               >
                 <Trash2 size={16} className="mx-auto" />
@@ -449,7 +449,7 @@ export const Users = () => {
             <button
               type="button"
               onClick={() => handleOpenEdit(row)}
-              className="h-9 w-9 rounded-lg border border-gray-200 hover:bg-blue-50 text-blue-600"
+              className="h-9 w-9 rounded-xl border border-slate-200 hover:bg-sky-50 hover:border-sky-200 text-sky-600 transition-all duration-200 inline-flex items-center justify-center"
               aria-label="Edit user"
             >
               <Edit2 size={16} className="mx-auto" />
@@ -460,7 +460,7 @@ export const Users = () => {
                 setSelectedUser(row);
                 setIsDeleteOpen(true);
               }}
-              className="h-9 w-9 rounded-lg border border-gray-200 hover:bg-red-50 text-red-600"
+              className="h-9 w-9 rounded-xl border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-500 transition-all duration-200 inline-flex items-center justify-center"
               aria-label="Delete user"
             >
               <Trash2 size={16} className="mx-auto" />
@@ -474,15 +474,15 @@ export const Users = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Kullanıcılar</h1>
-          <p className="text-gray-600 mt-1">Sistem kullanıcılarını yönetin</p>
+        <div className="animate-slide-up">
+          <h1 className="page-title">Kullanıcılar</h1>
+          <p className="page-subtitle">Sistem kullanıcılarını yönetin</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button
             variant="secondary"
             size="md"
-            className="gap-2 border-red-300 text-red-600 hover:bg-red-50"
+            className="gap-2 border-rose-300 text-rose-500 hover:bg-rose-50"
             onClick={() => setIsBulkDeleteOpen(true)}
           >
             <Trash2 size={16} />
@@ -491,7 +491,7 @@ export const Users = () => {
           <Button
             variant="secondary"
             size="md"
-            className="gap-2 border-[#10B981] text-[#10B981] hover:bg-green-50"
+            className="gap-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50"
             onClick={handleExcelImportOpen}
           >
             <Upload size={16} />
@@ -514,7 +514,7 @@ export const Users = () => {
           <Button
             variant="primary"
             size="md"
-            className="gap-2 bg-[#10B981] hover:bg-[#059669]"
+            className="gap-2 bg-emerald-500 hover:bg-emerald-600"
             onClick={handleOpenCreate}
           >
             <Plus size={18} />
@@ -523,7 +523,7 @@ export const Users = () => {
         </div>
       </div>
 
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-slate-200">
         {['student', 'teacher'].map((role) => (
           <button
             key={role}
@@ -531,12 +531,12 @@ export const Users = () => {
             onClick={() => setActiveRole(role)}
             className={`px-4 py-3 font-semibold border-b-2 transition-colors ${
               activeRole === role
-                ? 'border-[#10B981] text-[#10B981]'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
+                ? 'border-emerald-500 text-[#10B981]'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
             {ROLE_LABELS[role]}
-            <span className="ml-2 inline-flex items-center justify-center w-6 h-6 bg-gray-100 rounded-full text-xs font-bold">
+            <span className="ml-2 inline-flex items-center justify-center w-6 h-6 bg-slate-100 rounded-full text-xs font-bold">
               {roleCounts[role] || 0}
             </span>
           </button>
@@ -545,21 +545,21 @@ export const Users = () => {
 
       <Card className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3 flex-1">
-          <Search size={20} className="text-gray-400" />
+          <Search size={20} className="text-slate-400" />
           <input
             type="text"
             placeholder="Ad veya email ile ara..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="flex-1 bg-transparent outline-none text-gray-900 placeholder-gray-500"
+            className="flex-1 bg-transparent outline-none text-slate-900 placeholder-gray-500"
           />
         </div>
-        <div className="text-sm text-gray-500">{filteredUsers.length} kayıt</div>
+        <div className="text-sm text-slate-500">{filteredUsers.length} kayıt</div>
       </Card>
 
       <Card>
         {isError ? (
-          <div className="text-center text-red-600">Kullanıcılar yüklenemedi.</div>
+          <div className="text-center py-8 text-rose-500 font-medium">Kullanıcılar yüklenemedi.</div>
         ) : (
           <Table
             columns={columns}
@@ -573,44 +573,44 @@ export const Users = () => {
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Kullanıcı Ekle">
         <form className="space-y-4" onSubmit={handleCreateSubmit}>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Ad Soyad</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Ad Soyad</label>
             <input
               type="text"
               required
               value={createForm.name}
               onChange={(event) => setCreateForm({ ...createForm, name: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
               placeholder="Ad soyadını girin"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Email</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
             <input
               type="email"
               required
               value={createForm.email}
               onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
               placeholder="Email adresini girin"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Şifre</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Şifre</label>
             <input
               type="password"
               required
               value={createForm.password}
               onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
               placeholder="Şifre girin"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Rol</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Rol</label>
             <select
               value={createForm.role}
               onChange={(event) => setCreateForm({ ...createForm, role: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
             >
               <option value="student">Öğrenci</option>
               <option value="teacher">Öğretmen</option>
@@ -618,12 +618,12 @@ export const Users = () => {
           </div>
           {createForm.role === 'student' && (
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Öğrenci No</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Öğrenci No</label>
               <input
                 type="text"
                 value={createForm.student_number}
                 onChange={(event) => setCreateForm({ ...createForm, student_number: event.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+                className="input"
                 placeholder="Öğrenci numarasını girin"
               />
             </div>
@@ -642,41 +642,41 @@ export const Users = () => {
       <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Kullanıcıyı Düzenle">
         <form className="space-y-4" onSubmit={handleEditSubmit}>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Ad Soyad</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Ad Soyad</label>
             <input
               type="text"
               required
               value={editForm.name}
               onChange={(event) => setEditForm({ ...editForm, name: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Email</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
             <input
               type="email"
               required
               value={editForm.email}
               onChange={(event) => setEditForm({ ...editForm, email: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Şifre</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Şifre</label>
             <input
               type="password"
               value={editForm.password}
               onChange={(event) => setEditForm({ ...editForm, password: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
               placeholder="Boş bırakırsanız değişmez"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Rol</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Rol</label>
             <select
               value={editForm.role}
               onChange={(event) => setEditForm({ ...editForm, role: event.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+              className="input"
             >
               <option value="student">Öğrenci</option>
               <option value="teacher">Öğretmen</option>
@@ -684,12 +684,12 @@ export const Users = () => {
           </div>
           {editForm.role === 'student' && (
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Öğrenci No</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Öğrenci No</label>
               <input
                 type="text"
                 value={editForm.student_number}
                 onChange={(event) => setEditForm({ ...editForm, student_number: event.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+                className="input"
               />
             </div>
           )}
@@ -706,8 +706,8 @@ export const Users = () => {
 
       <Modal isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} title="Kullanıcıyı Sil">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">Bu kullanıcıyı silmek istediğinizden emin misiniz?</p>
-          <p className="font-semibold text-gray-900">{selectedUser?.displayName || selectedUser?.name}</p>
+          <p className="text-sm text-slate-600">Bu kullanıcıyı silmek istediğinizden emin misiniz?</p>
+          <p className="font-semibold text-slate-900">{selectedUser?.displayName || selectedUser?.name}</p>
           <div className="flex gap-3 justify-end">
             <Button variant="secondary" type="button" onClick={() => setIsDeleteOpen(false)}>
               İptal
@@ -727,8 +727,8 @@ export const Users = () => {
       <Modal isOpen={isBulkDeleteOpen} onClose={() => setIsBulkDeleteOpen(false)} title="Toplu Öğrenci Sil" size="lg">
         <div className="space-y-4">
           <div>
-            <p className="text-sm text-gray-600">Excel dosyasından öğrenci numarası veya email ile toplu silme yapın.</p>
-            <p className="text-xs text-gray-500 mt-1">Desteklenen sütunlar: student_number veya email</p>
+            <p className="text-sm text-slate-600">Excel dosyasından öğrenci numarası veya email ile toplu silme yapın.</p>
+            <p className="text-xs text-slate-500 mt-1">Desteklenen sütunlar: student_number veya email</p>
           </div>
 
           <input
@@ -741,16 +741,16 @@ export const Users = () => {
               setDeletePreview(null);
               if (file) parseBulkDeleteFile(file);
             }}
-            className="w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+            className="w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
           />
 
-          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
             {deleteParsing ? (
               'Dosya analiz ediliyor...'
             ) : deletePreview ? (
               <div className="space-y-1">
                 <p>{deletePreview.total} kayıt okundu.</p>
-                <p className="text-green-700">{deletePreview.matched} öğrenci silinecek.</p>
+                <p className="text-emerald-700">{deletePreview.matched} öğrenci silinecek.</p>
                 <p className="text-red-700">{deletePreview.notFound.length} kayıt bulunamadı.</p>
               </div>
             ) : (
@@ -759,9 +759,9 @@ export const Users = () => {
           </div>
 
           {deletePreview?.notFound?.length > 0 && (
-            <div className="rounded-lg border border-red-100 bg-red-50 p-4">
+            <div className="rounded-xl border border-rose-100 bg-rose-50 p-4">
               <p className="text-sm font-semibold text-red-700 mb-2">Sistemde Bulunamayanlar</p>
-              <ul className="text-sm text-red-600 space-y-1 max-h-32 overflow-auto">
+              <ul className="text-sm text-rose-500 space-y-1 max-h-32 overflow-auto">
                 {deletePreview.notFound.slice(0, 10).map((item, index) => (
                   <li key={`${item}-${index}`}>{item}</li>
                 ))}
@@ -792,11 +792,11 @@ export const Users = () => {
       <Modal isOpen={isExcelImportOpen} onClose={handleExcelImportClose} title="Excel'den Öğrenci Yükle" size="lg">
         {excelStep === 1 && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600 mb-4">Öğrenci bilgilerini içeren Excel dosyasını seçin.</p>
+            <p className="text-sm text-slate-600 mb-4">Öğrenci bilgilerini içeren Excel dosyasını seçin.</p>
             
             {/* Drag & Drop Area */}
             <div
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-[#10B981] hover:bg-green-50 transition-colors cursor-pointer"
+              className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-emerald-500 hover:bg-emerald-50 transition-colors cursor-pointer"
               onDragOver={(e) => {
                 e.preventDefault();
               }}
@@ -810,9 +810,9 @@ export const Users = () => {
                 }
               }}
             >
-              <Upload size={32} className="mx-auto text-gray-400 mb-2" />
-              <p className="text-sm text-gray-600 font-medium">Dosyayı buraya sürükleyin veya tıklayın</p>
-              <p className="text-xs text-gray-500 mt-1">Sadece .xlsx veya .xls dosyası yükleyebilirsiniz</p>
+              <Upload size={32} className="mx-auto text-slate-400 mb-2" />
+              <p className="text-sm text-slate-600 font-medium">Dosyayı buraya sürükleyin veya tıklayın</p>
+              <p className="text-xs text-slate-500 mt-1">Sadece .xlsx veya .xls dosyası yükleyebilirsiniz</p>
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -824,11 +824,11 @@ export const Users = () => {
                 id="excel-file-input"
               />
               <label htmlFor="excel-file-input" className="cursor-pointer">
-                {excelFile && <p className="text-xs text-green-600 mt-2">✓ {excelFile.name}</p>}
+                {excelFile && <p className="text-xs text-emerald-600 mt-2">✓ {excelFile.name}</p>}
               </label>
             </div>
 
-            {isParsingExcel && <p className="text-sm text-gray-500 text-center">Dosya işleniyor...</p>}
+            {isParsingExcel && <p className="text-sm text-slate-500 text-center">Dosya işleniyor...</p>}
 
             <div className="flex gap-3 justify-end">
               <Button variant="secondary" onClick={handleExcelImportClose}>
@@ -841,7 +841,7 @@ export const Users = () => {
         {excelStep === 2 && excelData && (
           <div className="space-y-4">
             {/* Course Detection */}
-            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
               <p className="text-sm text-blue-700">
                 <span className="font-semibold">Tespit edilen ders:</span> {excelData.course_name || '(Bulunamadı)'}
               </p>
@@ -849,11 +849,11 @@ export const Users = () => {
 
             {/* Course Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">Dersi Seçin</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Dersi Seçin</label>
               <select
                 value={selectedCourseId}
                 onChange={(e) => setSelectedCourseId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#10B981] outline-none"
+                className="input"
               >
                 <option value="">-- Ders Seçin --</option>
                 {Array.isArray(coursesData)
@@ -865,7 +865,7 @@ export const Users = () => {
                   : null}
               </select>
               {!selectedCourseId && excelData.course_name && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Lütfen "{excelData.course_name}" ile eşleşen dersi seçin
                 </p>
               )}
@@ -873,22 +873,22 @@ export const Users = () => {
 
             {/* Preview Table */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Yüklenecek Öğrenciler ({excelData.students.length})</h3>
-              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+              <h3 className="text-sm font-semibold text-slate-900 mb-2">Yüklenecek Öğrenciler ({excelData.students.length})</h3>
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-4 py-2 text-left text-gray-700 font-semibold">Öğrenci No</th>
-                      <th className="px-4 py-2 text-left text-gray-700 font-semibold">Ad Soyad</th>
-                      <th className="px-4 py-2 text-center text-gray-700 font-semibold">Zorunlu</th>
+                      <th className="px-4 py-2 text-left text-slate-700 font-semibold">Öğrenci No</th>
+                      <th className="px-4 py-2 text-left text-slate-700 font-semibold">Ad Soyad</th>
+                      <th className="px-4 py-2 text-center text-slate-700 font-semibold">Zorunlu</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-slate-200">
                     {excelData.students.slice(0, 10).map((student, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-gray-900">{student.student_number}</td>
-                        <td className="px-4 py-2 text-gray-900">{student.full_name}</td>
-                        <td className="px-4 py-2 text-center text-gray-600">
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-4 py-2 text-slate-900">{student.student_number}</td>
+                        <td className="px-4 py-2 text-slate-900">{student.full_name}</td>
+                        <td className="px-4 py-2 text-center text-slate-600">
                           {student.is_mandatory ? 'Evet' : 'Hayır'}
                         </td>
                       </tr>
@@ -897,7 +897,7 @@ export const Users = () => {
                 </table>
               </div>
               {excelData.students.length > 10 && (
-                <p className="text-xs text-gray-500 mt-2">... ve {excelData.students.length - 10} daha</p>
+                <p className="text-xs text-slate-500 mt-2">... ve {excelData.students.length - 10} daha</p>
               )}
             </div>
 
@@ -907,7 +907,7 @@ export const Users = () => {
               </Button>
               <Button
                 variant="primary"
-                className="bg-[#10B981] hover:bg-[#059669]"
+                className="bg-emerald-500 hover:bg-emerald-600"
                 onClick={handleExcelImport}
                 disabled={!selectedCourseId || isImportingExcel}
                 loading={isImportingExcel}
@@ -921,18 +921,18 @@ export const Users = () => {
         {excelStep === 3 && excelResult && (
           <div className="space-y-4">
             {/* Success Message */}
-            <div className="rounded-lg border border-green-100 bg-green-50 p-4">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
               <div className="flex flex-col gap-2">
-                <p className="text-sm font-semibold text-green-900">
+                <p className="text-sm font-semibold text-emerald-900">
                   ✅ {excelResult.enrolled_count || 0} öğrenci derse eklendi
                 </p>
                 {excelResult.created_count > 0 && (
-                  <p className="text-sm text-green-800">
+                  <p className="text-sm text-emerald-800">
                     🆕 {excelResult.created_count} yeni öğrenci oluşturuldu (şifre: öğrenci numarası)
                   </p>
                 )}
                 {excelResult.existing_count > 0 && (
-                  <p className="text-sm text-green-800">
+                  <p className="text-sm text-emerald-800">
                     👥 {excelResult.existing_count} öğrenci zaten sistemdeydi
                   </p>
                 )}
@@ -941,11 +941,11 @@ export const Users = () => {
 
            
             {excelResult.skipped_count > 0 && excelResult.errors && excelResult.errors.length > 0 && (
-              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
-                <p className="text-sm font-semibold text-red-900 mb-2">
+              <div className="rounded-xl border border-rose-100 bg-rose-50 p-4">
+                <p className="text-sm font-semibold text-rose-800 mb-2">
                   ❌ {excelResult.skipped_count} öğrenci eklenirken hata oluştu:
                 </p>
-                <ul className="space-y-1 text-xs text-red-800">
+                <ul className="space-y-1 text-xs text-rose-700">
                   {excelResult.errors.map((err, idx) => (
                     <li key={idx}>• {err}</li>
                   ))}
@@ -956,7 +956,7 @@ export const Users = () => {
             <div className="flex gap-3 justify-end">
               <Button
                 variant="primary"
-                className="bg-[#10B981] hover:bg-[#059669]"
+                className="bg-emerald-500 hover:bg-emerald-600"
                 onClick={handleExcelImportClose}
               >
                 Kapat
@@ -969,8 +969,8 @@ export const Users = () => {
         <div className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm text-gray-600">Şablon dosyayı indirip öğrenci bilgilerini ekleyin.</p>
-              <p className="text-xs text-gray-500 mt-1">Zorunlu alanlar: name, email, password</p>
+              <p className="text-sm text-slate-600">Şablon dosyayı indirip öğrenci bilgilerini ekleyin.</p>
+              <p className="text-xs text-slate-500 mt-1">Zorunlu alanlar: name, email, password</p>
             </div>
             <Button variant="secondary" size="sm" className="gap-2" onClick={handleTemplateDownload}>
               <Download size={14} />
@@ -987,10 +987,10 @@ export const Users = () => {
               setBulkStudents([]);
               if (file) parseBulkFile(file);
             }}
-            className="w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+            className="w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
           />
 
-          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
             {bulkParsing ? (
               'Dosya okunuyor...'
             ) : bulkStudents.length > 0 ? (
@@ -1001,7 +1001,7 @@ export const Users = () => {
           </div>
 
           {bulkResult && (
-            <div className="rounded-lg border border-green-100 bg-green-50 p-4 text-sm text-green-700">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-700">
               {bulkResult.added} öğrenci eklendi, {bulkResult.skipped} atlandı
             </div>
           )}
@@ -1013,7 +1013,7 @@ export const Users = () => {
             <Button
               variant="primary"
               type="button"
-              className="bg-[#10B981] hover:bg-[#059669]"
+              className="bg-emerald-500 hover:bg-emerald-600"
               loading={bulkCreateMutation.isLoading}
               onClick={handleBulkUpload}
               disabled={!bulkFile}

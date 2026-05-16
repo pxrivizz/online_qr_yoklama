@@ -11,7 +11,7 @@ export const QRScanner = () => {
   const canvasRef = useRef(null);
 
   const [isScanning, setIsScanning] = useState(true);
-  const [scanStatus, setScanStatus] = useState('idle'); // 'idle', 'success', 'error'
+  const [scanStatus, setScanStatus] = useState('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [courseName, setCourseName] = useState('');
 
@@ -27,7 +27,7 @@ export const QRScanner = () => {
         streamRef = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', true); // required to tell iOS safari we don't want fullscreen
+          videoRef.current.setAttribute('playsinline', true);
           videoRef.current.play();
           animationFrameId = requestAnimationFrame(tick);
         }
@@ -43,60 +43,43 @@ export const QRScanner = () => {
       if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
         const canvas = canvasRef.current;
         if (!canvas) return;
-
         const ctx = canvas.getContext('2d');
         const video = videoRef.current;
-
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert',
-        });
-
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
         if (code && isScanning) {
           setIsScanning(false);
           handleQRCode(code.data);
-          return; // Stop the loop
+          return;
         }
       }
-      if (isScanning) {
-        animationFrameId = requestAnimationFrame(tick);
-      }
+      if (isScanning) { animationFrameId = requestAnimationFrame(tick); }
     };
 
     startCamera();
-
     return () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      if (streamRef) {
-        streamRef.getTracks().forEach(track => track.stop());
-      }
+      if (streamRef) { streamRef.getTracks().forEach(track => track.stop()); }
     };
   }, [isScanning]);
 
   const handleQRCode = (qrToken) => {
     setScanStatus('processing');
-    
-    // 1. Get geolocation
     if (!navigator.geolocation) {
       setScanStatus('error');
       setErrorMessage('Tarayıcınız konum bilgisini desteklemiyor.');
       autoRedirect();
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        
         try {
           const response = await attendanceAPI.markAttendance(qrToken, latitude, longitude);
-          
           setScanStatus('success');
-          // Fallback to showing standard success message if course name isn't returned
           setCourseName(response.data?.course_name || response.course_name || 'Ders');
           toast.success('Yoklamanız başarıyla alındı!');
         } catch (error) {
@@ -117,83 +100,72 @@ export const QRScanner = () => {
     );
   };
 
-  const autoRedirect = () => {
-    setTimeout(() => {
-      navigate('/student/dashboard');
-    }, 3000);
-  };
+  const autoRedirect = () => { setTimeout(() => { navigate('/student/dashboard'); }, 3000); };
 
   return (
     <div className="relative min-h-screen bg-black text-white flex flex-col overflow-hidden">
-      {/* Hidden canvas for processing */}
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Header */}
-      <header className="absolute top-0 left-0 right-0 p-4 flex items-center z-30 bg-gradient-to-b from-black/70 to-transparent">
-        <button 
-          onClick={() => navigate('/student/dashboard')} 
-          className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+      <header className="absolute top-0 left-0 right-0 p-4 flex items-center z-30 bg-gradient-to-b from-black/80 to-transparent">
+        <button
+          onClick={() => navigate('/student/dashboard')}
+          className="p-2.5 rounded-xl bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all duration-200 active:scale-95"
         >
-          <ArrowLeft className="w-6 h-6 text-white" />
+          <ArrowLeft className="w-5 h-5 text-white" />
         </button>
-        <span className="ml-4 font-semibold text-lg">QR Tarayıcı</span>
+        <span className="ml-4 font-bold text-base tracking-tight">QR Tarayıcı</span>
       </header>
 
       {/* Camera Feed */}
       <div className="flex-1 flex items-center justify-center relative">
-        <video 
-          ref={videoRef} 
-          className="w-full h-full object-cover absolute inset-0" 
-          playsInline
-        />
+        <video ref={videoRef} className="w-full h-full object-cover absolute inset-0" playsInline />
 
         {/* Scan Overlay */}
         {scanStatus === 'idle' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
             <div className="relative w-64 h-64">
-              {/* Corner Brackets */}
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-green-500 rounded-tl-md" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-green-500 rounded-tr-md" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-green-500 rounded-bl-md" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-green-500 rounded-br-md" />
-              {/* Scanning Beam */}
-              <div className="absolute left-2 right-2 h-0.5 bg-green-500/70 top-1/2 -translate-y-1/2 animate-pulse" />
+              <div className="absolute top-0 left-0 w-10 h-10 border-t-[3px] border-l-[3px] border-emerald-400 rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-10 h-10 border-t-[3px] border-r-[3px] border-emerald-400 rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-[3px] border-l-[3px] border-emerald-400 rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-[3px] border-r-[3px] border-emerald-400 rounded-br-xl" />
+              <div className="absolute left-3 right-3 h-0.5 bg-emerald-400/60 top-1/2 -translate-y-1/2 animate-pulse rounded-full" />
             </div>
-            <p className="mt-8 text-sm text-center font-medium bg-black/50 backdrop-blur-md px-4 py-2 rounded-full">
+            <p className="mt-8 text-sm text-center font-medium bg-black/50 backdrop-blur-xl px-5 py-2.5 rounded-xl border border-white/10">
               QR kodu kameraya gösterin
             </p>
           </div>
         )}
 
-        {/* Processing State overlay */}
+        {/* Processing */}
         {scanStatus === 'processing' && (
-          <div className="absolute inset-0 bg-black/70 z-20 flex flex-col items-center justify-center space-y-4">
-            <div className="animate-spin rounded-full h-14 w-14 border-4 border-white border-t-transparent" />
-            <p className="text-lg font-medium">Konum alınıyor & yoklama iletiliyor...</p>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-20 flex flex-col items-center justify-center space-y-4 animate-fade-in">
+            <div className="animate-spin rounded-full h-14 w-14 border-3 border-white border-t-transparent" />
+            <p className="text-base font-medium">Konum alınıyor & yoklama iletiliyor...</p>
           </div>
         )}
 
-        {/* Success Animation Overlay */}
+        {/* Success */}
         {scanStatus === 'success' && (
-          <div className="absolute inset-0 bg-green-600 z-40 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-            <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center animate-bounce shadow-lg mb-6">
-              <Check className="w-14 h-14 text-white" />
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-emerald-700 z-40 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+            <div className="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-3xl flex items-center justify-center animate-bounce shadow-2xl mb-6">
+              <Check className="w-12 h-12 text-white" />
             </div>
             <h2 className="text-3xl font-extrabold mb-2">Yoklamanız Alındı!</h2>
-            {courseName && <p className="text-xl text-green-100 font-medium">{courseName}</p>}
-            <p className="text-xs text-green-200 absolute bottom-8 animate-pulse">Ana sayfaya yönlendiriliyorsunuz...</p>
+            {courseName && <p className="text-xl text-emerald-100 font-medium">{courseName}</p>}
+            <p className="text-xs text-emerald-200 absolute bottom-8 animate-pulse">Ana sayfaya yönlendiriliyorsunuz...</p>
           </div>
         )}
 
-        {/* Error Animation Overlay */}
+        {/* Error */}
         {scanStatus === 'error' && (
-          <div className="absolute inset-0 bg-red-600 z-40 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-            <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-6 shadow-lg animate-shake">
-              <X className="w-14 h-14 text-white" />
+          <div className="absolute inset-0 bg-gradient-to-br from-rose-500 to-rose-700 z-40 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+            <div className="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-3xl flex items-center justify-center mb-6 shadow-2xl animate-shake">
+              <X className="w-12 h-12 text-white" />
             </div>
             <h2 className="text-3xl font-extrabold mb-2">Hata Oluştu!</h2>
-            <p className="text-lg text-red-100 font-medium max-w-md">{errorMessage}</p>
-            <p className="text-xs text-red-200 absolute bottom-8 animate-pulse">Ana sayfaya yönlendiriliyorsunuz...</p>
+            <p className="text-lg text-rose-100 font-medium max-w-md">{errorMessage}</p>
+            <p className="text-xs text-rose-200 absolute bottom-8 animate-pulse">Ana sayfaya yönlendiriliyorsunuz...</p>
           </div>
         )}
       </div>

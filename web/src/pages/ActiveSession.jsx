@@ -12,14 +12,11 @@ import { attendanceAPI } from '../api/attendanceAPI';
 
 export const ActiveSession = () => {
   const { id: sessionId } = useParams();
-  
   const [session, setSession] = useState(null);
   const [students, setStudents] = useState([]);
   const [attendances, setAttendances] = useState([]);
   const [timeLeft, setTimeLeft] = useState(28);
   const [loading, setLoading] = useState(true);
-
-  // Modal & Selection States
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudents, setSelectedStudents] = useState([]);
@@ -30,12 +27,10 @@ export const ActiveSession = () => {
       setLoading(true);
       const sessionData = await sessionAPI.getSessionById(sessionId);
       setSession(sessionData);
-      
       if (sessionData?.course_id) {
         const studentsData = await courseAPI.getCourseStudents(sessionData.course_id);
         setStudents(studentsData.data || studentsData || []);
       }
-      
       const attendancesData = await sessionAPI.getSessionAttendances(sessionId);
       setAttendances(attendancesData || []);
     } catch (error) {
@@ -46,32 +41,19 @@ export const ActiveSession = () => {
     }
   };
 
-  useEffect(() => {
-    fetchSessionData();
-  }, [sessionId]);
+  useEffect(() => { fetchSessionData(); }, [sessionId]);
 
-  // QR Token Refresh & Timer Loop
   useEffect(() => {
     if (!session?.is_active) return;
-
     const interval = setInterval(async () => {
       try {
         const refreshed = await sessionAPI.refreshQRToken(sessionId);
         setSession(prev => ({ ...prev, qr_token: refreshed.qr_token }));
         setTimeLeft(28);
-      } catch (error) {
-        console.error('Failed to refresh QR token:', error);
-      }
+      } catch (error) { console.error('Failed to refresh QR token:', error); }
     }, 28000);
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 28));
-    }, 1000);
-
-    return () => {
-      clearInterval(interval);
-      clearInterval(timer);
-    };
+    const timer = setInterval(() => { setTimeLeft((prev) => (prev > 0 ? prev - 1 : 28)); }, 1000);
+    return () => { clearInterval(interval); clearInterval(timer); };
   }, [session?.is_active, sessionId]);
 
   const handleEndSession = async () => {
@@ -85,75 +67,62 @@ export const ActiveSession = () => {
     }
   };
 
-  const filteredStudents = students.filter(student => 
+  const filteredStudents = students.filter(student =>
     (student.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (student.student_number || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const isStudentPresent = (studentId) => {
-    return attendances.some(att => att.student_id === studentId && att.is_valid);
-  };
+  const isStudentPresent = (studentId) => attendances.some(att => att.student_id === studentId && att.is_valid);
 
   const handleCheckboxChange = (studentId) => {
-    setSelectedStudents(prev => 
-      prev.includes(studentId) 
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
+    setSelectedStudents(prev =>
+      prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
     );
   };
 
   const handleManualSubmit = async () => {
-    if (selectedStudents.length === 0) {
-      toast.error('Lütfen öğrenci seçin');
-      return;
-    }
-    
+    if (selectedStudents.length === 0) { toast.error('Lütfen öğrenci seçin'); return; }
     setIsSubmitting(true);
     try {
       await attendanceAPI.markManual(sessionId, selectedStudents);
       toast.success(`${selectedStudents.length} öğrenci yoklamaya eklendi`);
       setIsManualOpen(false);
       setSelectedStudents([]);
-      
       const updated = await sessionAPI.getSessionAttendances(sessionId);
       setAttendances(updated || []);
     } catch (error) {
       console.error('Manual attendance error:', error);
       toast.error('Manuel yoklama ekleme başarısız');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } finally { setIsSubmitting(false); }
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-600">Yükleniyor...</div>;
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center animate-fade-in">
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-emerald-500 border-t-transparent mx-auto mb-4" />
+          <p className="text-sm text-slate-500">Yükleniyor...</p>
+        </div>
+      </div>
+    );
   }
 
   const progress = (timeLeft / 28) * 100;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Yoklama Oturumu</h1>
-          <p className="text-gray-600 mt-1">{session?.course_name || 'Ders Bilgisi'}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="animate-slide-up">
+          <h1 className="page-title">Yoklama Oturumu</h1>
+          <p className="page-subtitle">{session?.course_name || 'Ders Bilgisi'}</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => setIsManualOpen(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-          >
+          <Button variant="primary" size="md" className="gap-2" onClick={() => setIsManualOpen(true)}>
             Manuel Yoklama
-          </button>
+          </Button>
           {session?.is_active && (
-            <Button 
-              variant="danger" 
-              size="md" 
-              className="gap-2"
-              onClick={handleEndSession}
-            >
-              <StopCircle size={18} />
+            <Button variant="danger" size="md" className="gap-2" onClick={handleEndSession}>
+              <StopCircle size={16} />
               Oturumu Sonlandır
             </Button>
           )}
@@ -161,158 +130,101 @@ export const ActiveSession = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* QR Code Section */}
         <div className="lg:col-span-2 space-y-6">
-          {/* QR Code Card */}
           <Card className="flex flex-col items-center justify-center py-12">
             <div className="mb-6">
               {session?.is_active && session?.qr_token ? (
-                <QRCodeSVG
-                  value={session.qr_token}
-                  size={300}
-                  bgColor="#FFFFFF"
-                  fgColor="#1E3A5F"
-                  level="H"
-                  includeMargin={true}
-                />
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                  <QRCodeSVG value={session.qr_token} size={280} bgColor="#FFFFFF" fgColor="#1E3A5F" level="H" includeMargin={true} />
+                </div>
               ) : (
-                <div className="text-gray-500 text-lg font-medium py-24">Oturum Sonlandırıldı</div>
+                <div className="text-slate-400 text-lg font-medium py-24">Oturum Sonlandırıldı</div>
               )}
             </div>
           </Card>
 
-          {/* Timer Section */}
           {session?.is_active && (
             <Card className="flex flex-col items-center py-8">
-              <p className="text-sm text-gray-600 mb-6 font-medium">QR otomatik yenileniyor</p>
-
-              <div className="relative w-40 h-40 mb-6">
+              <p className="text-xs text-slate-500 mb-6 font-medium uppercase tracking-wider">QR otomatik yenileniyor</p>
+              <div className="relative w-36 h-36 mb-6">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#E5E7EB" strokeWidth="8" />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="none"
-                    stroke="#10B981"
-                    strokeWidth="8"
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#E2E8F0" strokeWidth="6" />
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#10B981" strokeWidth="6"
                     strokeDasharray={`${(progress / 100) * (2 * Math.PI * 45)} ${2 * Math.PI * 45}`}
-                    strokeLinecap="round"
-                    style={{ transition: 'stroke-dasharray 0.1s linear' }}
-                  />
+                    strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.3s ease' }} />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
-                    <Clock className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                    <p className="text-4xl font-bold text-gray-900">{timeLeft}</p>
-                    <p className="text-xs text-gray-500 mt-1">saniye</p>
+                    <p className="text-3xl font-extrabold text-slate-900">{timeLeft}</p>
+                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">saniye</p>
                   </div>
                 </div>
               </div>
-
-              <p className="text-xs text-gray-500 text-center">QR kod her 28 saniyede bir otomatik olarak yenilenmektedir</p>
+              <p className="text-xs text-slate-400 text-center">QR kod her 28 saniyede bir otomatik olarak yenilenmektedir</p>
             </Card>
           )}
         </div>
 
-        {/* Attendance List */}
         <div className="lg:col-span-1">
           <Card>
-            <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-              <h3 className="font-bold text-gray-900">Mevcut Öğrenciler</h3>
-              <span className="inline-flex items-center justify-center w-7 h-7 bg-green-100 rounded-full">
-                <span className="text-sm font-bold text-green-700">{attendances.length}</span>
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Mevcut Öğrenciler</h3>
+              <span className="inline-flex items-center justify-center w-7 h-7 bg-emerald-50 rounded-xl text-sm font-bold text-emerald-700">
+                {attendances.length}
               </span>
             </div>
-
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="space-y-2 max-h-96 overflow-y-auto">
               {attendances.map((att, idx) => (
-                <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div key={idx} className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-slate-50 transition-colors">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{att.name || att.student_name || 'Öğrenci'}</p>
-                    <p className="text-xs text-gray-500">{att.student_number || '-'}</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">{att.name || att.student_name || 'Öğrenci'}</p>
+                    <p className="text-xs text-slate-400">{att.student_number || '-'}</p>
                   </div>
                   <div className="flex items-center gap-2 ml-2">
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-slate-400">
                       {att.marked_at ? new Date(att.marked_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '-'}
                     </span>
-                    <div className="text-green-600 font-bold">✓</div>
+                    <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
+                      <span className="text-emerald-600 text-xs font-bold">✓</span>
+                    </div>
                   </div>
                 </div>
               ))}
-
               {attendances.length === 0 && (
-                <div className="text-gray-500 text-sm text-center py-6">Henüz gelen öğrenci yok.</div>
+                <div className="text-slate-400 text-sm text-center py-8">Henüz gelen öğrenci yok.</div>
               )}
             </div>
           </Card>
         </div>
       </div>
 
-      {/* Manual Attendance Modal */}
       <Modal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} title="Manuel Yoklama Ekle" size="lg">
         <div className="space-y-4">
-          <div>
-            <input
-              type="text"
-              placeholder="Öğrenci adı veya numarası ile filtrele..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1E3A5F] focus:ring-[#1E3A5F] text-sm"
-            />
-          </div>
-
-          <div className="max-h-[400px] overflow-y-auto space-y-2 divide-y divide-gray-100">
+          <input type="text" placeholder="Öğrenci adı veya numarası ile filtrele..." value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)} className="input" />
+          <div className="max-h-[400px] overflow-y-auto space-y-1">
             {filteredStudents.map((student) => {
               const present = isStudentPresent(student.id);
               const selected = selectedStudents.includes(student.id);
-              
               return (
-                <div key={student.id} className="flex items-center justify-between py-3 first:pt-0">
+                <div key={student.id} className="flex items-center justify-between py-3 px-3 rounded-xl hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <input
-                      type="checkbox"
-                      id={`student-${student.id}`}
-                      checked={present || selected}
-                      disabled={present}
+                    <input type="checkbox" id={`student-${student.id}`} checked={present || selected} disabled={present}
                       onChange={() => handleCheckboxChange(student.id)}
-                      className="rounded text-[#1E3A5F] focus:ring-[#1E3A5F] disabled:bg-gray-200 disabled:text-gray-400 h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
-                    />
-                    <label 
-                      htmlFor={`student-${student.id}`} 
-                      className={`text-sm font-medium truncate ${present ? 'text-gray-400' : 'text-gray-900 cursor-pointer'}`}
-                    >
-                      {student.name} <span className="text-gray-500 font-normal">({student.student_number || '-'})</span>
+                      className="rounded-md text-emerald-600 focus:ring-emerald-500 disabled:bg-slate-200 h-4 w-4 cursor-pointer disabled:cursor-not-allowed" />
+                    <label htmlFor={`student-${student.id}`} className={`text-sm font-medium truncate ${present ? 'text-slate-400' : 'text-slate-800 cursor-pointer'}`}>
+                      {student.name} <span className="text-slate-400 font-normal">({student.student_number || '-'})</span>
                     </label>
                   </div>
-                  {present && (
-                    <div className="text-green-600 text-sm font-bold flex items-center gap-1 ml-2">
-                      ✓ Mevcut
-                    </div>
-                  )}
+                  {present && <span className="badge-success text-xs ml-2">✓ Mevcut</span>}
                 </div>
               );
             })}
-
-            {filteredStudents.length === 0 && (
-              <div className="text-center py-6 text-sm text-gray-500">
-                Öğrenci bulunamadı.
-              </div>
-            )}
+            {filteredStudents.length === 0 && <div className="text-center py-6 text-sm text-slate-400">Öğrenci bulunamadı.</div>}
           </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>
-              İptal
-            </Button>
-            <Button
-              variant="primary"
-              type="button"
-              className="bg-green-600 hover:bg-green-700 text-white border-none"
-              onClick={handleManualSubmit}
-              loading={isSubmitting}
-              disabled={selectedStudents.length === 0}
-            >
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button variant="secondary" type="button" onClick={() => setIsManualOpen(false)}>İptal</Button>
+            <Button variant="success" type="button" onClick={handleManualSubmit} loading={isSubmitting} disabled={selectedStudents.length === 0}>
               Seçilenleri İşaretle
             </Button>
           </div>

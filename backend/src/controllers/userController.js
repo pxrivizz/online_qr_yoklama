@@ -1,4 +1,3 @@
-const bcrypt = require('bcryptjs');
 const { pool } = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
 
@@ -68,15 +67,13 @@ const createUser = async (req, res) => {
       return res.status(400).json({ error: 'Name, email, password, and role are required' });
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
     const userId = uuidv4();
 
     const result = await pool.query(
-      `INSERT INTO users (id, name, email, password_hash, role, student_number)
+      `INSERT INTO users (id, name, email, password, role, student_number)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, email, role, student_number, created_at`,
-      [userId, name, email, passwordHash, role, student_number || null]
+      [userId, name, email, password, role, student_number || null]
     );
 
     return res.status(201).json(result.rows[0]);
@@ -127,9 +124,8 @@ const updateUser = async (req, res) => {
     }
 
     if (password !== undefined) {
-      const passwordHash = await bcrypt.hash(password, 10);
-      updates.push(`password_hash = $${paramCount}`);
-      values.push(passwordHash);
+      updates.push(`password = $${paramCount}`);
+      values.push(password);
       paramCount++;
     }
 
@@ -203,36 +199,32 @@ const bulkCreateStudents = async (req, res) => {
     let createdCount = 0;
     let skippedCount = 0;
 
-    // Hash passwords for all students
-    const studentsWithHash = await Promise.all(
-      students.map(async (student) => {
-        const { name, email, password, student_number } = student;
+    const studentsWithData = students.map((student) => {
+      const { name, email, password, student_number } = student;
 
-        if (!name || !email || !password) {
-          throw new Error('Name, email, and password are required for each student');
-        }
+      if (!name || !email || !password) {
+        throw new Error('Name, email, and password are required for each student');
+      }
 
-        const passwordHash = await bcrypt.hash(password, 10);
-        return {
-          id: uuidv4(),
-          name,
-          email,
-          password_hash: passwordHash,
-          role: 'student',
-          student_number: student_number || null,
-        };
-      })
-    );
+      return {
+        id: uuidv4(),
+        name,
+        email,
+        password: password,
+        role: 'student',
+        student_number: student_number || null,
+      };
+    });
 
     // Insert all students with ON CONFLICT
     const insertQuery = `
-      INSERT INTO users (id, name, email, password_hash, role, student_number)
-      VALUES ${studentsWithHash.map((_, i) => `($${i * 6 + 1}, $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6})`).join(', ')}
+      INSERT INTO users (id, name, email, password, role, student_number)
+      VALUES ${studentsWithData.map((_, i) => `($${i * 6 + 1}, $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6})`).join(', ')}
       ON CONFLICT (email) DO NOTHING
       RETURNING id
     `;
 
-    const values = studentsWithHash.flatMap((s) => [s.id, s.name, s.email, s.password_hash, s.role, s.student_number]);
+    const values = studentsWithData.flatMap((s) => [s.id, s.name, s.email, s.password, s.role, s.student_number]);
 
     const result = await pool.query(insertQuery, values);
     createdCount = result.rows.length;

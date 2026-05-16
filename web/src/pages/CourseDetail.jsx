@@ -342,15 +342,15 @@ export const CourseDetail = () => {
         const percent = total > 0 ? Math.round((attended / total) * 100) : 0;
         return (
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-gray-200 rounded-full h-2">
+            <div className="flex-1 bg-slate-100 rounded-full h-2">
               <div
-                className="bg-green-500 h-2 rounded-full"
+                className={`h-2 rounded-full transition-all duration-500 ${percent >= 70 ? 'bg-emerald-500' : percent >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`}
                 style={{ width: `${percent}%` }}
               />
             </div>
             <div className="text-xs">
               <div className="font-semibold">{percent}%</div>
-              <div className="text-xxs text-gray-600">{attended} / {total} derse katıldı</div>
+              <div className="text-[11px] text-slate-500">{attended} / {total} derse katıldı</div>
             </div>
           </div>
         );
@@ -361,15 +361,15 @@ export const CourseDetail = () => {
   return (
     <div className="space-y-6">
       {/* Course Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="animate-slide-up">
+          <h1 className="page-title">
             {isCourseLoading ? 'Yükleniyor...' : course?.name || 'Ders'}
           </h1>
-          <div className="flex items-center gap-4 text-gray-600">
-            <span className="text-lg font-semibold">{course?.code}</span>
-            <span className="flex items-center gap-1">
-              <Users size={16} />
+          <div className="flex items-center gap-4 text-slate-500 mt-1">
+            <span className="text-base font-semibold font-mono">{course?.code}</span>
+            <span className="flex items-center gap-1.5 text-sm">
+              <Users size={15} />
               {course?.student_count || students.length || '0'} Öğrenci
             </span>
           </div>
@@ -415,72 +415,72 @@ export const CourseDetail = () => {
       </div>
 
       {/* Course Info */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <Card>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Ders Kodu</p>
-              <p className="text-2xl font-bold text-gray-900">{course?.code || '-'}</p>
+              <p className="text-sm font-medium text-slate-500 mb-1">Ders Kodu</p>
+              <p className="text-2xl font-extrabold text-slate-900 tracking-tight">{course?.code || '-'}</p>
             </div>
-            <div className="text-3xl">📚</div>
+            <div className="p-3 rounded-xl bg-violet-50"><span className="text-xl">📚</span></div>
           </div>
         </Card>
 
         <Card>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Toplam Öğrenci</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-slate-500 mb-1">Toplam Öğrenci</p>
+              <p className="text-2xl font-extrabold text-slate-900 tracking-tight">
                 {course?.student_count || students.length || '0'}
               </p>
             </div>
-            <div className="text-3xl">
-              <Users size={32} className="text-blue-600" />
+            <div className="p-3 rounded-xl bg-sky-50">
+              <Users size={22} className="text-sky-600" />
             </div>
           </div>
         </Card>
 
         <Card>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">İzin Verilen Ağ / SSID</p>
-              <p className="text-lg font-mono text-gray-900">
+              <p className="text-sm font-medium text-slate-500 mb-1">İzin Verilen Ağ</p>
+              <p className="text-sm font-mono text-slate-900">
                 {course?.allowed_ip_range || course?.allowed_ssid || 'Tümü'}
               </p>
             </div>
-            <div className="text-3xl">
-              <MapPin size={32} className="text-green-600" />
+            <div className="p-3 rounded-xl bg-emerald-50">
+              <MapPin size={22} className="text-emerald-600" />
             </div>
           </div>
         </Card>
 
         <Card>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Planlanan Yoklama</p>
-              <p className="text-2xl font-bold text-gray-900">{course?.total_sessions_planned ?? 0}</p>
+              <p className="text-sm font-medium text-slate-500 mb-1">Planlanan Yoklama</p>
+              <p className="text-2xl font-extrabold text-slate-900 tracking-tight">{course?.total_sessions_planned ?? 0}</p>
             </div>
-            <div className="text-3xl">📆</div>
+            <div className="p-3 rounded-xl bg-amber-50"><span className="text-xl">📆</span></div>
           </div>
         </Card>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 gap-6">
+      <div className="flex border-b border-slate-200 gap-1">
         <button
           onClick={() => setActiveTab('students')}
-          className={`pb-4 text-sm font-semibold border-b-2 px-2 transition-colors ${activeTab === 'students'
-              ? 'border-[#1E3A5F] text-[#1E3A5F]'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition-all duration-200 ${activeTab === 'students'
+              ? 'border-emerald-500 text-emerald-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
         >
           Öğrenci Listesi
         </button>
         <button
           onClick={() => setActiveTab('history')}
-          className={`pb-4 text-sm font-semibold border-b-2 px-2 transition-colors ${activeTab === 'history'
-              ? 'border-[#1E3A5F] text-[#1E3A5F]'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition-all duration-200 ${activeTab === 'history'
+              ? 'border-emerald-500 text-emerald-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
         >
           Yoklama Geçmişi
@@ -489,8 +489,8 @@ export const CourseDetail = () => {
 
       {activeTab === 'students' ? (
         <Card>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Öğrenci Listesi & Yoklama</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
+            <h2 className="section-title">Öğrenci Listesi & Yoklama</h2>
             <div className="flex gap-3">
               <Button
                 variant="secondary"
@@ -503,7 +503,7 @@ export const CourseDetail = () => {
               <Button
                 variant="secondary"
                 size="sm"
-                className="gap-2 bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+                className="gap-2 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
                 onClick={handleExcelExport}
               >
                 📄 Excel'e Aktar
@@ -512,86 +512,86 @@ export const CourseDetail = () => {
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-4 text-sm p-4 bg-gray-50 rounded-xl border border-gray-100 mb-6">
+          <div className="flex flex-wrap items-center gap-5 text-sm p-4 bg-slate-50 rounded-xl border border-slate-100 mb-6">
             <div className="flex items-center gap-2">
-              <span className="w-4 h-4 rounded-full bg-green-500 inline-flex items-center justify-center text-white text-xxs font-bold">✓</span>
-              <span className="text-gray-700 font-medium">🟢 QR ile katıldı / Manuel eklendi</span>
+              <div className="w-4 h-4 rounded-full bg-emerald-500 inline-flex items-center justify-center text-white text-[9px] font-bold">✓</div>
+              <span className="text-slate-600 font-medium">QR / Manuel katılım</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-4 h-4 rounded-full bg-gray-300 inline-block" />
-              <span className="text-gray-700 font-medium">⚪ Katılmadı</span>
+              <div className="w-4 h-4 rounded-full bg-slate-200 inline-block" />
+              <span className="text-slate-600 font-medium">Katılmadı</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-4 h-4 rounded-full bg-yellow-100 border border-yellow-300 inline-block" />
-              <span className="text-gray-700 font-medium">🟡 Alttan alan öğrenci</span>
+              <div className="w-4 h-4 rounded-full bg-amber-100 border border-amber-300 inline-block" />
+              <span className="text-slate-600 font-medium">Alttan alan öğrenci</span>
             </div>
           </div>
 
           {isGridLoading ? (
-            <div className="text-center py-6 text-gray-500">Yoklama tablosu yükleniyor...</div>
+            <div className="text-center py-8 text-slate-400">Yoklama tablosu yükleniyor...</div>
           ) : !gridData || !gridData.students || gridData.students.length === 0 ? (
-            <div className="text-center py-6 text-gray-500">Hiç öğrenci bulunamadı</div>
+            <div className="text-center py-8 text-slate-400">Hiç öğrenci bulunamadı</div>
           ) : totalPlanned === 0 ? (
-            <div className="text-yellow-600 bg-yellow-50 p-3 rounded-lg text-sm">
+            <div className="text-amber-700 bg-amber-50 p-4 rounded-xl text-sm border border-amber-200">
               ⚠️ Bu ders için henüz yoklama sayısı belirlenmemiş. Dersi düzenleyerek toplam yoklama sayısını girin.
             </div>
           ) : (
-            <div className="overflow-x-auto shadow rounded-xl border border-gray-100">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50 text-gray-700 font-semibold text-sm">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50 text-slate-600 text-xs font-semibold uppercase tracking-wider">
                   <tr>
-                    <th className="sticky left-0 bg-gray-50 px-6 py-4 text-left font-bold z-10 border-r border-gray-200 min-w-[180px]">
+                    <th className="sticky left-0 bg-slate-50 px-5 py-3.5 text-left font-semibold z-10 border-r border-slate-200 min-w-[180px]">
                       Öğrenci Adı
                     </th>
-                    <th className="px-6 py-4 text-left font-bold min-w-[120px]">Öğrenci No</th>
+                    <th className="px-5 py-3.5 text-left font-semibold min-w-[120px]">Öğrenci No</th>
                     {sessionColumns.map((index) => (
-                      <th key={index} className="px-2 py-3 text-center text-xs font-semibold text-gray-600 w-8">
+                      <th key={index} className="px-2 py-3 text-center text-xs font-semibold text-slate-500 w-8">
                         {index}
                       </th>
                     ))}
-                    <th className="px-6 py-4 text-center font-bold border-l border-gray-200 min-w-[140px]">
+                    <th className="px-5 py-3.5 text-center font-semibold border-l border-slate-200 min-w-[140px]">
                       Toplam / Yüzde
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 bg-white text-sm text-gray-900">
+                <tbody className="divide-y divide-slate-100 bg-white text-sm text-slate-800">
                   {gridData?.students?.map((student) => {
                     const totalAttended = student.manual_indexes?.length || 0;
                     const percentage = totalPlanned > 0 ? Math.round((totalAttended / totalPlanned) * 100) : 0;
 
-                    let percentColor = 'text-red-600 font-bold';
+                    let percentColor = 'text-rose-600 font-bold';
                     if (percentage >= 70) {
-                      percentColor = 'text-green-600 font-bold';
+                      percentColor = 'text-emerald-600 font-bold';
                     } else if (percentage >= 60) {
-                      percentColor = 'text-yellow-600 font-bold';
+                      percentColor = 'text-amber-600 font-bold';
                     }
 
                     return (
-                      <tr key={student.id} className={student.is_mandatory ? 'bg-white hover:bg-gray-50' : 'bg-yellow-50 hover:bg-yellow-100/50'}>
-                        <td className="px-4 py-3 sticky left-0 bg-white border-r border-gray-200 z-10">
+                      <tr key={student.id} className={student.is_mandatory ? 'bg-white hover:bg-slate-50/50' : 'bg-amber-50/50 hover:bg-amber-50'}>
+                        <td className="px-4 py-3 sticky left-0 bg-white border-r border-slate-200 z-10">
                           <div className="flex items-center gap-3">
                             {student.avatar_url ? (
                               <img
                                 src={`http://localhost:3000${student.avatar_url}`}
                                 alt={student.name}
-                                className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                                className="w-8 h-8 rounded-xl object-cover flex-shrink-0"
                               />
                             ) : (
-                              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                <span className="text-xs text-gray-500 font-bold">
+                              <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs text-slate-500 font-bold">
                                   {student.name?.charAt(0)}
                                 </span>
                               </div>
                             )}
                             <div>
-                              <span className="font-medium text-gray-900 text-sm truncate">{student.name}</span>
+                              <span className="font-medium text-slate-900 text-sm truncate">{student.name}</span>
                               {!student.is_mandatory && (
-                                <span className="ml-2 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">Alttan</span>
+                                <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-semibold">Alttan</span>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-600">{student.student_number}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-slate-500 font-mono text-xs">{student.student_number}</td>
 
                         {sessionColumns.map((index) => {
                           const attended = student.manual_indexes?.includes(index);
@@ -600,9 +600,9 @@ export const CourseDetail = () => {
                               <button
                                 type="button"
                                 onClick={() => handleToggleAttendance(student.id, index)}
-                                className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-110 ${attended
-                                    ? 'bg-green-500 border-green-500 text-white'
-                                    : 'bg-white border-gray-300 hover:border-green-400'
+                                className={`w-7 h-7 rounded-full border-2 transition-all duration-200 hover:scale-110 ${attended
+                                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                                    : 'bg-white border-slate-300 hover:border-emerald-400'
                                   }`}
                               >
                                 {attended && <span className="text-xs">✓</span>}
@@ -611,8 +611,8 @@ export const CourseDetail = () => {
                           );
                         })}
 
-                        <td className="px-6 py-4 text-center whitespace-nowrap font-medium border-l border-gray-200">
-                          <div className="text-gray-800 font-semibold">{totalAttended} / {totalPlanned}</div>
+                        <td className="px-5 py-4 text-center whitespace-nowrap font-medium border-l border-slate-200">
+                          <div className="text-slate-800 font-semibold">{totalAttended} / {totalPlanned}</div>
                           <div className={percentColor}>%{percentage}</div>
                         </td>
                       </tr>
@@ -626,35 +626,35 @@ export const CourseDetail = () => {
       ) : (
         <Card>
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Geçmiş Yoklama Oturumları</h2>
+            <h2 className="section-title">Geçmiş Yoklama Oturumları</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm text-left">
-              <thead className="bg-gray-50 text-gray-700 font-semibold">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm text-left">
+              <thead className="bg-slate-50 text-slate-600 text-xs font-semibold uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-3">Başlangıç Tarihi</th>
-                  <th className="px-6 py-3">Durum</th>
-                  <th className="px-6 py-3">Katılım</th>
-                  <th className="px-6 py-3 text-right">İşlemler</th>
+                  <th className="px-5 py-3.5">Başlangıç Tarihi</th>
+                  <th className="px-5 py-3.5">Durum</th>
+                  <th className="px-5 py-3.5">Katılım</th>
+                  <th className="px-5 py-3.5 text-right">İşlemler</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-900">
+              <tbody className="divide-y divide-slate-100 text-slate-800">
                 {courseSessions?.map((session) => (
-                  <tr key={session.id}>
-                    <td className="px-6 py-4">
+                  <tr key={session.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-5 py-4">
                       {new Date(session.started_at).toLocaleString('tr-TR')}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4">
                       {session.is_active ? (
-                        <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">Aktif</span>
+                        <span className="badge-success">Aktif</span>
                       ) : (
-                        <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Tamamlandı</span>
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Tamamlandı</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4 font-medium">
                       {session.attendance_count || 0} Öğrenci
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-5 py-4 text-right">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -677,7 +677,7 @@ export const CourseDetail = () => {
                 ))}
                 {(!courseSessions || courseSessions.length === 0) && (
                   <tr>
-                    <td colSpan="4" className="text-center py-6 text-gray-500">
+                    <td colSpan="4" className="text-center py-8 text-slate-400">
                       Hiç yoklama oturumu bulunamadı.
                     </td>
                   </tr>
@@ -702,11 +702,11 @@ export const CourseDetail = () => {
               placeholder="Öğrenci adı veya numarası ile filtrele..."
               value={manualSearchQuery}
               onChange={(e) => setManualSearchQuery(e.target.value)}
-              className="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#1E3A5F] focus:ring-[#1E3A5F] text-sm"
+              className="input"
             />
           </div>
 
-          <div className="max-h-[400px] overflow-y-auto space-y-2 divide-y divide-gray-100">
+          <div className="max-h-[400px] overflow-y-auto space-y-1 divide-y divide-slate-100">
             {students
               .filter(student =>
                 (student.name || '').toLowerCase().includes(manualSearchQuery.toLowerCase()) ||
@@ -717,7 +717,7 @@ export const CourseDetail = () => {
                 const selected = manualSelectedStudents.includes(student.id);
 
                 return (
-                  <div key={student.id} className="flex items-center justify-between py-3 first:pt-0">
+                  <div key={student.id} className="flex items-center justify-between py-3 px-3 rounded-xl hover:bg-slate-50 transition-colors first:pt-3">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <input
                         type="checkbox"
@@ -731,33 +731,31 @@ export const CourseDetail = () => {
                               : [...prev, student.id]
                           );
                         }}
-                        className="rounded text-[#1E3A5F] focus:ring-[#1E3A5F] disabled:bg-gray-200 disabled:text-gray-400 h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
+                        className="rounded-md text-emerald-600 focus:ring-emerald-500 disabled:bg-slate-200 h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
                       />
                       <label
                         htmlFor={`past-student-${student.id}`}
-                        className={`text-sm font-medium truncate ${present ? 'text-gray-400' : 'text-gray-900 cursor-pointer'}`}
+                        className={`text-sm font-medium truncate ${present ? 'text-slate-400' : 'text-slate-800 cursor-pointer'}`}
                       >
-                        {student.name} <span className="text-gray-500 font-normal">({student.student_number || '-'})</span>
+                        {student.name} <span className="text-slate-400 font-normal">({student.student_number || '-'})</span>
                       </label>
                     </div>
                     {present && (
-                      <div className="text-green-600 text-sm font-bold flex items-center gap-1 ml-2">
-                        ✓ Mevcut
-                      </div>
+                      <span className="badge-success text-xs ml-2">✓ Mevcut</span>
                     )}
                   </div>
                 );
               })}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <Button variant="secondary" type="button" onClick={() => setIsManualModalOpen(false)}>
               İptal
             </Button>
             <Button
               variant="primary"
               type="button"
-              className="bg-green-600 hover:bg-green-700 text-white border-none"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white border-none"
               onClick={async () => {
                 if (manualSelectedStudents.length === 0) {
                   toast.error('Lütfen öğrenci seçin');
@@ -792,13 +790,14 @@ export const CourseDetail = () => {
         <div className="space-y-4">
           {course && (
             <div className="text-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">{course.name}</h3>
-              <p className="text-sm text-gray-500">{course.code}</p>
+              <h3 className="text-xl font-bold text-slate-900">{course.name}</h3>
+              <p className="text-sm text-slate-500 font-mono">{course.code}</p>
             </div>
           )}
 
           {qrSession ? (
-            <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-6">
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-6">
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
               <QRCodeSVG
                 value={qrSession.qr_token || ''}
                 size={220}
@@ -806,14 +805,15 @@ export const CourseDetail = () => {
                 bgColor="#FFFFFF"
                 includeMargin
               />
-              <div className="text-sm text-gray-700">
-                Kalan süre: <span className="font-semibold">{timeLeft}s</span>
-                {isRefreshing && <span className="ml-2 text-xs text-gray-500">Yenileniyor...</span>}
               </div>
-              <div className="text-xs text-gray-500">Oturum ID: {qrSession.id}</div>
+              <div className="text-sm text-slate-700 font-medium">
+                Kalan süre: <span className="text-emerald-600 font-bold text-lg">{timeLeft}s</span>
+                {isRefreshing && <span className="ml-2 text-xs text-slate-400 animate-pulse">Yenileniyor...</span>}
+              </div>
+              <div className="text-xs text-slate-400 font-mono">Oturum ID: {qrSession.id}</div>
             </div>
           ) : (
-            <div className="text-sm text-gray-500 text-center">Yoklama oturumu yükleniyor...</div>
+            <div className="text-sm text-slate-400 text-center py-8">Yoklama oturumu yükleniyor...</div>
           )}
 
           <div className="flex justify-end gap-3">
@@ -837,7 +837,7 @@ export const CourseDetail = () => {
       {/* Excel Import Modal */}
       <Modal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} title="Excel'den Öğrenci İçe Aktar">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-slate-500">
             Öğrencileri ders listenizden toplu şekilde yüklemek için Excel (.xlsx) formatındaki dosyanızı seçin.
           </p>
 
@@ -850,16 +850,16 @@ export const CourseDetail = () => {
               setParsedImportStudents([]);
               if (file) handleImportExcel(file);
             }}
-            className="w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+            className="w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 file:transition-colors file:cursor-pointer"
           />
 
-          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
             {parsedImportStudents.length > 0 ? (
-              <span className="text-green-600 font-medium">
+              <span className="text-emerald-600 font-medium">
                 ✓ {parsedImportStudents.length} geçerli öğrenci okundu.
               </span>
             ) : importFile ? (
-              <span className="text-yellow-600">Dosya okunuyor / geçersiz veri...</span>
+              <span className="text-amber-600">Dosya okunuyor / geçersiz veri...</span>
             ) : (
               'Henüz dosya seçilmedi.'
             )}

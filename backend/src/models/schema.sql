@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(100) NOT NULL,
   email VARCHAR(150) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  password VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'teacher', 'student')),
   student_number VARCHAR(20),
   avatar_url VARCHAR(255),
@@ -14,6 +14,14 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Add avatar_url column if not exists (for existing databases)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255);
+
+-- Rename password_hash to password if it exists (for existing databases)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash') THEN
+    ALTER TABLE users RENAME COLUMN password_hash TO password;
+  END IF;
+END $$;
 
 -- Courses table
 CREATE TABLE IF NOT EXISTS courses (
@@ -80,11 +88,6 @@ CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_sessions_qr_token ON attendance_sessions(qr_token);
 CREATE INDEX IF NOT EXISTS idx_attendances_session_id ON attendances(session_id);
 
-INSERT INTO users (name, email, password_hash, role)
-VALUES ('Admin', 'admin@school.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin')
-ON CONFLICT (email) DO NOTHING;
-
--- Demo admin account requested by user
-INSERT INTO users (name, email, password_hash, role)
-VALUES ('Güncel Sarıman', 'guncelsariman@posta.mu.edu.tr', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin')
-ON CONFLICT (email) DO NOTHING;
+INSERT INTO users (name, email, password, role)
+VALUES ('Halil Çiftçi', 'halilciftci@posta.mu.edu.tr', 'halil2006', 'admin')
+ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password;

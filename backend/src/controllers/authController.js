@@ -1,4 +1,3 @@
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 
@@ -19,8 +18,8 @@ const login = async (req, res) => {
 
     const user = result.rows[0];
 
-    // Compare password with bcrypt
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    // Compare password directly
+    const isPasswordValid = password === user.password;
 
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });

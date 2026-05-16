@@ -1,5 +1,5 @@
 const ExcelJS = require('exceljs');
-const bcryptjs = require('bcryptjs');
+
 const { v4: uuidv4 } = require('uuid');
 
 /**
@@ -139,19 +139,14 @@ async function importStudentsFromExcel(buffer, courseId, pool) {
       });
     });
 
-    // Hash all passwords concurrently
-    const hashedPasswords = await Promise.all(
-      rows.map((row) => bcryptjs.hash(row.password, 10))
-    );
-
     // Prepare insert values
-    const insertPromises = rows.map((row, index) => {
+    const insertPromises = rows.map((row) => {
       const userId = uuidv4();
       return {
         id: userId,
         name: row.name,
         email: row.email,
-        password_hash: hashedPasswords[index],
+        password: row.password,
         student_number: row.student_number,
         role: 'student',
       };
@@ -171,10 +166,10 @@ async function importStudentsFromExcel(buffer, courseId, pool) {
           results.skipped_count++;
         } else {
           const insertResult = await pool.query(
-            `INSERT INTO users (id, name, email, password_hash, student_number, role)
+            `INSERT INTO users (id, name, email, password, student_number, role)
              VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING id`,
-            [user.id, user.name, user.email, user.password_hash, user.student_number, user.role]
+            [user.id, user.name, user.email, user.password, user.student_number, user.role]
           );
           userId = insertResult.rows[0].id;
           results.imported_count++;

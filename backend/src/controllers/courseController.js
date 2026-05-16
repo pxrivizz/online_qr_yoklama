@@ -315,7 +315,7 @@ const exportAttendance = async (req, res) => {
   }
 };
 
-const bcrypt = require('bcryptjs');
+
 
 const importCourseStudents = async (req, res) => {
   try {
@@ -347,12 +347,11 @@ const importCourseStudents = async (req, res) => {
       } else {
         // Create new user
         studentId = uuidv4();
-        const passwordHash = await bcrypt.hash('Password123', 10);
         
         await pool.query(
-          `INSERT INTO users (id, name, email, password_hash, role, student_number)
+          `INSERT INTO users (id, name, email, password, role, student_number)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [studentId, name, defaultEmail, passwordHash, 'student', student_number]
+          [studentId, name, defaultEmail, 'Password123', 'student', student_number]
         );
       }
 

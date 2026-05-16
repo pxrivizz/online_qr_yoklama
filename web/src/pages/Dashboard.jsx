@@ -137,7 +137,7 @@ export const Dashboard = () => {
   const handleEndSession = async (courseId) => {
     const activeSession = activeSessionByCourseId.get(courseId);
     const sessionId = activeSession?.id || qrSession?.id;
-    
+
     if (!sessionId) {
       toast.error('Bu ders için aktif oturum bulunamadı');
       return;
@@ -169,90 +169,109 @@ export const Dashboard = () => {
     setIsQrModalOpen(false);
   };
 
-    if (isStudent) {
-      return <StudentDashboard />;
-    }
+  if (isStudent) {
+    return <StudentDashboard />;
+  }
 
   // Teacher/Admin Dashboard
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Hoş Geldiniz</h1>
-        <p className="text-gray-600">Bugün yapmanız gereken işleri burada görebilirsiniz</p>
+      <div className="animate-slide-up">
+        <h1 className="page-title">Hoş Geldiniz 👋</h1>
+        <p className="page-subtitle">Bugün yapmanız gereken işleri burada görebilirsiniz</p>
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <StatCard
-          icon={<BookOpen className="w-8 h-8" />}
+          icon={<BookOpen className="w-6 h-6" />}
           label="Toplam Ders"
           value={String(courses.length)}
-          color="bg-blue-50"
-          iconColor="text-blue-600"
+          color="bg-sky-50"
+          iconColor="text-sky-600"
+          borderColor="border-sky-100"
         />
         <StatCard
-          icon={<Clock className="w-8 h-8" />}
+          icon={<Clock className="w-6 h-6" />}
           label="Aktif Oturum"
           value={String(activeSessions.length)}
-          color="bg-green-50"
-          iconColor="text-green-600"
+          color="bg-emerald-50"
+          iconColor="text-emerald-600"
+          borderColor="border-emerald-100"
         />
         <StatCard
-          icon={<CheckCircle2 className="w-8 h-8" />}
+          icon={<CheckCircle2 className="w-6 h-6" />}
           label="Bugünkü Yoklama"
-          value="150"
-          color="bg-purple-50"
-          iconColor="text-purple-600"
+          value="0"
+          color="bg-violet-50"
+          iconColor="text-violet-600"
+          borderColor="border-violet-100"
         />
       </div>
 
       {/* My Courses Section */}
       <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Derslerim</h2>
-          <div className="flex items-center gap-3">
-            <Button variant="primary" size="md" className="gap-2" onClick={handleAddCourse}>
-              <Plus size={18} />
-              Yeni Ders Ekle
-            </Button>
-          </div>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="section-title">Derslerim</h2>
+          <Button variant="primary" size="md" className="gap-2" onClick={handleAddCourse}>
+            <Plus size={16} />
+            Yeni Ders Ekle
+          </Button>
         </div>
 
         {/* Courses Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {isCoursesLoading ? (
-            <div className="text-sm text-gray-500">Dersler yükleniyor...</div>
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="card animate-pulse space-y-4">
+                <div className="h-5 bg-slate-100 rounded-lg w-3/4" />
+                <div className="h-4 bg-slate-100 rounded-lg w-1/2" />
+                <div className="h-10 bg-slate-100 rounded-xl" />
+              </div>
+            ))
           ) : courses.length === 0 ? (
-            <div className="text-sm text-gray-500">Henüz ders bulunamadı.</div>
+            <div className="col-span-full text-center py-12">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-7 h-7 text-slate-400" />
+              </div>
+              <p className="text-sm text-slate-500 font-medium">Henüz ders bulunamadı.</p>
+              <p className="text-xs text-slate-400 mt-1">Yeni ders ekleyerek başlayın</p>
+            </div>
           ) : courses.map((course) => {
             const isActive = activeSessionCourseIds.has(course.id);
 
             return (
               <div
                 key={course.id}
-                className="card group cursor-pointer hover:shadow-lg transition-all duration-200"
+                className="card-interactive group"
                 onClick={() => navigate(`/courses/${course.id}`)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">{course.name}</h3>
-                    <p className="text-sm text-gray-500">{course.code}</p>
+                    <h3 className="text-base font-bold text-slate-900 mb-0.5 group-hover:text-emerald-600 transition-colors">{course.name}</h3>
+                    <p className="text-xs text-slate-500 font-mono">{course.code}</p>
                   </div>
-                  <div className="text-2xl opacity-50 group-hover:opacity-100 transition">📚</div>
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-emerald-50 transition-colors">
+                    <BookOpen className="w-5 h-5 text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                  </div>
                 </div>
 
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 mr-2">
-                      👥
-                    </span>
-                    {course.students || course.student_count || '-'} Öğrenci
+                <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
+                  <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg">
+                    <span className="text-xs">👥</span>
+                    <span className="text-xs font-medium">{course.students || course.student_count || '-'} Öğrenci</span>
                   </div>
+                  {isActive && (
+                    <div className="flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-medium text-emerald-700">Aktif</span>
+                    </div>
+                  )}
                 </div>
 
                 {isActive ? (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -261,9 +280,9 @@ export const Dashboard = () => {
                         setQrSession(activeSession);
                         setIsQrModalOpen(true);
                       }}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] transition-colors"
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-all duration-200 active:scale-[0.97]"
                     >
-                      <CheckCircle2 size={16} />
+                      <CheckCircle2 size={15} />
                       QR Kodu
                     </button>
                     <button
@@ -272,7 +291,7 @@ export const Dashboard = () => {
                         e.stopPropagation();
                         handleEndSession(course.id);
                       }}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors"
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-all duration-200 active:scale-[0.97]"
                     >
                       Oturumu Bitir
                     </button>
@@ -284,9 +303,9 @@ export const Dashboard = () => {
                       e.stopPropagation();
                       handleStartSession(course.id);
                     }}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-[#10B981] hover:bg-[#059669] transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 transition-all duration-200 active:scale-[0.97]"
                   >
-                    <CheckCircle2 size={16} />
+                    <CheckCircle2 size={15} />
                     Yoklama Başlat
                   </button>
                 )}
@@ -297,34 +316,36 @@ export const Dashboard = () => {
       </div>
 
       <Modal isOpen={isQrModalOpen} onClose={handleCloseQrModal} title="Yoklama QR Kodu" size="lg">
-        <div className="space-y-4">
+        <div className="space-y-5">
           {qrSessionCourse && (
-            <div className="text-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">{qrSessionCourse.name}</h3>
-              <p className="text-sm text-gray-500">{qrSessionCourse.code}</p>
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-slate-900">{qrSessionCourse.name}</h3>
+              <p className="text-sm text-slate-500 font-mono">{qrSessionCourse.code}</p>
             </div>
           )}
 
           {qrSession ? (
-            <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-6">
-              <QRCodeSVG
-                value={qrSession.qr_token || ''}
-                size={220}
-                fgColor="#1E3A5F"
-                bgColor="#FFFFFF"
-                includeMargin
-              />
-              <div className="text-sm text-gray-700">
-                Kalan süre: <span className="font-semibold">{timeLeft}s</span>
-                {isRefreshing && <span className="ml-2 text-xs text-gray-500">Yenileniyor...</span>}
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-8">
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <QRCodeSVG
+                  value={qrSession.qr_token || ''}
+                  size={220}
+                  fgColor="#1E3A5F"
+                  bgColor="#FFFFFF"
+                  includeMargin
+                />
               </div>
-              <div className="text-xs text-gray-500">Oturum ID: {qrSession.id}</div>
+              <div className="text-sm text-slate-700 font-medium">
+                Kalan süre: <span className="text-emerald-600 font-bold text-lg">{timeLeft}s</span>
+                {isRefreshing && <span className="ml-2 text-xs text-slate-400 animate-pulse">Yenileniyor...</span>}
+              </div>
+              <div className="text-xs text-slate-400 font-mono">Oturum ID: {qrSession.id}</div>
             </div>
           ) : (
-            <div className="text-sm text-gray-500 text-center">Yoklama oturumu yükleniyor...</div>
+            <div className="text-sm text-slate-500 text-center py-8">Yoklama oturumu yükleniyor...</div>
           )}
 
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={handleCloseQrModal} disabled={isEndingSession}>
               Kapat
             </Button>
@@ -345,14 +366,14 @@ export const Dashboard = () => {
   );
 };
 
-const StatCard = ({ icon, label, value, color, iconColor }) => (
-  <div className="card">
+const StatCard = ({ icon, label, value, color, iconColor, borderColor }) => (
+  <div className={`card !border-${borderColor?.replace('border-', '') || 'slate-100'}`}>
     <div className="flex items-start justify-between">
       <div>
-        <p className="text-sm font-medium text-gray-600 mb-2">{label}</p>
-        <p className="text-3xl font-bold text-gray-900">{value}</p>
+        <p className="text-sm font-medium text-slate-500 mb-1">{label}</p>
+        <p className="text-3xl font-extrabold text-slate-900 tracking-tight">{value}</p>
       </div>
-      <div className={`p-3 rounded-lg ${color}`}>
+      <div className={`p-3 rounded-xl ${color}`}>
         <div className={iconColor}>{icon}</div>
       </div>
     </div>
@@ -373,48 +394,53 @@ const StudentDashboard = () => {
   const attendedCoursesCount = myAttendances.filter((course) => (course.attended || 0) > 0).length;
   const averageAttendance = myAttendances.length
     ? Math.round(
-        myAttendances.reduce((sum, course) => sum + Number(course.attendance_percentage || 0), 0) /
-          myAttendances.length
-      )
+      myAttendances.reduce((sum, course) => sum + Number(course.attendance_percentage || 0), 0) /
+      myAttendances.length
+    )
     : 0;
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-        <div className="text-sm text-gray-500">Yükleniyor...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-center animate-fade-in">
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-emerald-500 border-t-transparent mx-auto mb-4" />
+          <div className="text-sm text-slate-500">Yükleniyor...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Akademik Performans</h1>
-        <p className="text-gray-600">Yoklama durumunuzu ve katılım oranınızı görebilirsiniz</p>
+      <div className="animate-slide-up">
+        <h1 className="page-title">Akademik Performans</h1>
+        <p className="page-subtitle">Yoklama durumunuzu ve katılım oranınızı görebilirsiniz</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <StatCard
-          icon={<CheckCircle2 className="w-8 h-8" />}
+          icon={<CheckCircle2 className="w-6 h-6" />}
           label="Katıldığım Dersler"
           value={String(attendedCoursesCount)}
-          color="bg-green-50"
-          iconColor="text-green-600"
+          color="bg-emerald-50"
+          iconColor="text-emerald-600"
         />
         <StatCard
-          icon={<BarChart3 className="w-8 h-8" />}
+          icon={<BarChart3 className="w-6 h-6" />}
           label="Ortalama Katılım"
           value={`${averageAttendance}%`}
-          color="bg-blue-50"
-          iconColor="text-blue-600"
+          color="bg-sky-50"
+          iconColor="text-sky-600"
         />
       </div>
 
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Derslere Göre Yoklama</h2>
+        <h2 className="section-title mb-5">Derslere Göre Yoklama</h2>
         <div className="space-y-4">
           {myAttendances.length === 0 ? (
-            <div className="card text-sm text-gray-500">Henüz ders kaydı bulunamadı.</div>
+            <div className="card text-center py-8">
+              <p className="text-sm text-slate-500">Henüz ders kaydı bulunamadı.</p>
+            </div>
           ) : (
             myAttendances.map((course) => {
               const percentage = Number(course.attendance_percentage || 0);
@@ -425,22 +451,21 @@ const StudentDashboard = () => {
                 <div key={course.course_id} className="card">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-bold text-gray-900">{course.course_name}</h3>
-                      <p className="text-sm text-gray-600">{course.course_code}</p>
+                      <h3 className="text-base font-bold text-slate-900">{course.course_name}</h3>
+                      <p className="text-xs text-slate-500 font-mono">{course.course_code}</p>
                     </div>
-                    <div className={`text-lg font-bold ${percentage >= 70 ? 'text-green-600' : percentage >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                    <div className={`text-lg font-extrabold ${percentage >= 70 ? 'text-emerald-600' : percentage >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>
                       {percentage}%
                     </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                  <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
                     <div
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        percentage >= 70 ? 'bg-green-500' : percentage >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
+                      className={`h-2 rounded-full transition-all duration-500 ${percentage >= 70 ? 'bg-emerald-500' : percentage >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                        }`}
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
-                  <p className="text-sm text-gray-600">{attended}/{total} derse katıldınız</p>
+                  <p className="text-xs text-slate-500">{attended}/{total} derse katıldınız</p>
                 </div>
               );
             })
