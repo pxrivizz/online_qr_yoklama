@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Menu, X, LayoutDashboard, BookOpen, Users, ClipboardList, LogOut } from 'lucide-react';
+import { Menu, X, LayoutDashboard, BookOpen, Users, ClipboardList, LogOut, QrCode } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/Button';
@@ -42,19 +42,18 @@ export const Sidebar = () => {
 
       {/* Sidebar */}
       <div
-        className={`fixed left-0 top-0 h-screen w-[260px] bg-gradient-to-b from-[#1E3A5F] to-[#152D4A] text-white transition-transform duration-300 ease-out z-30 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } flex flex-col`}
+        className={`fixed left-0 top-0 h-screen w-[260px] bg-gradient-to-b from-[#1E3A5F] to-[#152D4A] text-white transition-transform duration-300 ease-out z-30 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          } flex flex-col`}
       >
         {/* Logo */}
         <div className="px-6 pt-7 pb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg">
-              <span className="text-lg font-bold">QR</span>
+              <QrCode className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight">QR Katılım</h1>
-              <p className="text-[11px] text-slate-400 font-medium">Yoklama Sistemi</p>
+              <h1 className="text-lg font-bold tracking-tight">Online Yoklama</h1>
+              <p className="text-[11px] text-slate-400 font-medium">Teknoloji Fakültesi Yoklama</p>
             </div>
           </div>
         </div>
@@ -69,10 +68,9 @@ export const Sidebar = () => {
                 to={item.path}
                 onClick={() => setIsOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group ${
-                    isActive
-                      ? 'bg-white/15 text-white shadow-sm backdrop-blur-sm'
-                      : 'text-slate-300 hover:bg-white/8 hover:text-white'
+                  `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group ${isActive
+                    ? 'bg-white/15 text-white shadow-sm backdrop-blur-sm'
+                    : 'text-slate-300 hover:bg-white/8 hover:text-white'
                   }`
                 }
               >
@@ -105,18 +103,17 @@ export const Sidebar = () => {
               <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
             </div>
           </div>
-          
+
           <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
-            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
-              user?.role === 'admin' 
-                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' 
-                : user?.role === 'teacher' 
+            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${user?.role === 'admin'
+              ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+              : user?.role === 'teacher'
                 ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
                 : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-            }`}>
+              }`}>
               {user?.role === 'admin' ? 'Yönetici' : user?.role === 'teacher' ? 'Öğretmen' : 'Öğrenci'}
             </span>
-            
+
             <button
               onClick={handleLogout}
               className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-200"

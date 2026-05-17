@@ -462,49 +462,14 @@ const enrollStudents = async (req, res) => {
 };
 
 const deleteCourse = async (req, res) => {
-  const { id } = req.params;
-  const client = await pool.connect();
-
   try {
-    await client.query('BEGIN');
-
-    const courseCheck = await client.query('SELECT id FROM courses WHERE id = $1', [id]);
-    if (courseCheck.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Ders bulunamadı' });
-    }
-
-    // Step 1: Get all sessions for this course
-    const sessions = await client.query(
-      'SELECT id FROM attendance_sessions WHERE course_id = $1',
-      [id]
-    );
-
-    // Step 2: Delete attendances for those sessions
-    for (const session of sessions.rows) {
-      await client.query('DELETE FROM attendances WHERE session_id = $1', [session.id]);
-    }
-
-    // Step 3: Delete sessions
-    await client.query('DELETE FROM attendance_sessions WHERE course_id = $1', [id]);
-
-    // Step 4: Delete course_students
-    await client.query('DELETE FROM course_students WHERE course_id = $1', [id]);
-
-    // Step 5: Delete pending_enrollments
-    await client.query('DELETE FROM pending_enrollments WHERE course_id = $1', [id]);
-
-    // Step 6: Delete course
-    await client.query('DELETE FROM courses WHERE id = $1', [id]);
-
-    await client.query('COMMIT');
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM courses WHERE id = $1 RETURNING id', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Ders bulunamadı' });
     return res.status(200).json({ message: 'Ders silindi' });
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Delete course error:', error.message, error.detail);
+    console.error('Delete course error:', error);
     return res.status(500).json({ error: 'Server error' });
-  } finally {
-    client.release();
   }
 };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Clock, StopCircle } from 'lucide-react';
@@ -72,7 +72,10 @@ export const ActiveSession = () => {
     (student.student_number || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const isStudentPresent = (studentId) => attendances.some(att => att.student_id === studentId && att.is_valid);
+  const attendanceSet = useMemo(() => {
+    return new Set(attendances.filter(a => a.is_valid).map(a => a.student_id));
+  }, [attendances]);
+  const isStudentPresent = (studentId) => attendanceSet.has(studentId);
 
   const handleCheckboxChange = (studentId) => {
     setSelectedStudents(prev =>

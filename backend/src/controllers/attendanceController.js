@@ -36,7 +36,7 @@ async function markAttendance(req, res) {
 
     // Step 2: Get session details
     const sessionResult = await pool.query(
-      `SELECT s.id, s.is_active, s.course_id, c.allowed_ssid, c.allowed_ip_range, 
+      `SELECT s.id, s.is_active, s.course_id, s.qr_token as active_token, c.allowed_ssid, c.allowed_ip_range, 
               c.allowed_latitude, c.allowed_longitude, c.allowed_radius_meters
        FROM attendance_sessions s
        JOIN courses c ON s.course_id = c.id
@@ -52,6 +52,10 @@ async function markAttendance(req, res) {
 
     if (!session.is_active) {
       return res.status(400).json({ error: 'Session is not active' });
+    }
+
+    if (session.active_token !== qr_token) {
+      return res.status(400).json({ success: false, rejection_reason: 'QR kodu zaten kullanılmış veya süresi dolmuş' });
     }
 
     // Step 3: Check for duplicate attendance

@@ -2,10 +2,9 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
 import toast from 'react-hot-toast';
 import { GoogleLogin } from '@react-oauth/google';
-import { GraduationCap, AlertCircle, User, X } from 'lucide-react';
+import { GraduationCap, AlertCircle, User, X, QrCode } from 'lucide-react';
 
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '630910368260-49do92os2tnu416lsv1qko5btdnccrik.apps.googleusercontent.com';
 if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
@@ -17,7 +16,7 @@ export const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, loginWithGoogle, registerStudent, isAuthenticated, user } = useAuth();
+  const { login, loginWithGoogle, registerStudent } = useAuth();
   const navigate = useNavigate();
 
   // Student number modal state
@@ -62,7 +61,6 @@ export const Login = () => {
         setShowStudentModal(true);
         setStudentNumber('');
         setStudentError('');
-        // Focus the input after modal renders
         setTimeout(() => studentInputRef.current?.focus(), 150);
         return;
       }
@@ -116,7 +114,6 @@ export const Login = () => {
     } catch (err) {
       const message = err?.response?.data?.error || 'Kayıt sırasında bir hata oluştu.';
       setStudentError(message);
-      // Don't close modal on error — let user fix and retry
     } finally {
       setIsRegistering(false);
     }
@@ -132,138 +129,131 @@ export const Login = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#1E3A5F] via-[#1A3352] to-[#0F2440] text-white flex-col justify-center items-center p-12 relative overflow-hidden">
-        {/* Decorative Elements */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-white/5 rounded-full" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-white/5 rounded-full" />
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50 p-6">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden animate-slide-up border border-slate-100">
+        {/* Navy Banner Section */}
+        <div className="bg-[#1E3A5F] px-8 py-10 text-center relative overflow-hidden">
+          {/* Subtle decorations */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl translate-x-10 -translate-y-10" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-400/10 rounded-full blur-xl -translate-x-5 translate-y-5" />
 
-        <div className="text-center relative z-10 animate-fade-in">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-emerald-500/30">
-            <span className="text-3xl font-extrabold">QR</span>
+          <div className="relative z-10 flex flex-col items-center justify-center">
+            <div className="w-16 h-16 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20 flex items-center justify-center mb-5 shadow-lg">
+              <QrCode className="w-8 h-8 text-white" />
+            </div>
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-2xl font-bold text-white tracking-wide">Online Yoklama</h1>
+            </div>
+            <p className="text-sm text-blue-200/80 font-medium tracking-wide">Teknoloji Fakültesi Online Yoklama</p>
           </div>
-          <h1 className="text-4xl font-extrabold mb-4 tracking-tight">QR Katılım</h1>
-          <p className="text-xl text-slate-300 mb-2 font-medium">Akıllı Katılım Yönetim Sistemi</p>
-          <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">QR kodları ile hızlı, güvenli ve modern katılım takibi deneyimi</p>
-          
-          {/* Feature pills */}
-          <div className="flex flex-wrap justify-center gap-3 mt-10">
-            <div className="px-4 py-2 rounded-full bg-white/8 border border-white/10 text-sm text-slate-300 backdrop-blur-sm">
-              📱 Anında QR Tarama
+        </div>
+
+        {/* Form Content */}
+        <div className="p-8">
+          {error && (
+            <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl animate-shake flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-rose-700 font-medium leading-relaxed">{error}</p>
             </div>
-            <div className="px-4 py-2 rounded-full bg-white/8 border border-white/10 text-sm text-slate-300 backdrop-blur-sm">
-              📊 Gerçek Zamanlı Takip
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                E-posta Adresi
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]/20 focus:border-[#1E3A5F] transition-all duration-200 placeholder:text-slate-400 font-medium text-base"
+                placeholder="ornek@posta.mu.edu.tr"
+                required
+              />
             </div>
-            <div className="px-4 py-2 rounded-full bg-white/8 border border-white/10 text-sm text-slate-300 backdrop-blur-sm">
-              🔒 Güvenli Doğrulama
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Şifre
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]/20 focus:border-[#1E3A5F] transition-all duration-200 placeholder:text-slate-400 font-medium text-base"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-12 mt-4 bg-[#1E3A5F] hover:bg-[#152a45] active:bg-[#0f1e32] text-white font-semibold rounded-xl shadow-lg shadow-[#1E3A5F]/20 transition-all duration-200 disabled:opacity-70 flex items-center justify-center text-base"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Giriş Yap'
+              )}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="mt-8 mb-6 flex items-center justify-between">
+            <span className="border-b w-full border-slate-200"></span>
+            <span className="px-4 text-xs text-slate-400 uppercase font-bold tracking-wider">veya</span>
+            <span className="border-b w-full border-slate-200"></span>
+          </div>
+
+          {/* Google Login Button */}
+          <div>
+            <div className="relative w-full h-12 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-colors cursor-pointer overflow-hidden shadow-sm">
+              {/* Visual Button */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="absolute left-4 flex items-center">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-semibold text-slate-700">Google ile Giriş Yap</span>
+              </div>
+
+              {/* Invisible GoogleLogin to capture clicks and handle auth */}
+              <div className="absolute inset-0 opacity-0 z-10 w-full h-full flex items-center justify-center transform scale-150">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  width="800"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6">
-        <div className="w-full max-w-md animate-slide-up">
-          {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/20">
-              <span className="text-2xl font-extrabold text-white">QR</span>
-            </div>
-          </div>
-
-          <Card className="!p-8 shadow-[0_10px_40px_-10px_rgb(0_0_0/0.08)]">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-extrabold text-slate-900 mb-1 tracking-tight">Hoş Geldiniz</h2>
-              <p className="text-sm text-slate-500">Sisteme giriş yapın</p>
-            </div>
-
-            {error && (
-              <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl animate-shake">
-                <p className="text-sm text-rose-700 font-medium">{error}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Email Adresi
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input"
-                  placeholder="Email adresinizi girin"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Şifre
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input"
-                  placeholder="Şifrenizi girin"
-                  required
-                />
-              </div>
-
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                className="w-full mt-6"
-                loading={isLoading}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
-              </Button>
-            </form>
-
-            <div className="mt-6 flex items-center justify-between">
-              <span className="border-b w-1/5 border-slate-200 lg:w-1/4"></span>
-              <span className="text-xs text-center text-slate-500 uppercase font-medium">veya şununla devam et</span>
-              <span className="border-b w-1/5 border-slate-200 lg:w-1/4"></span>
-            </div>
-
-            <div className="mt-6 flex justify-center">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-                shape="rectangular"
-                theme="outline"
-                size="large"
-                text="continue_with"
-              />
-            </div>
-          </Card>
-
-          <p className="text-center text-xs text-slate-400 mt-6">
-            QR Katılım Yoklama Sistemi © {new Date().getFullYear()}
+        {/* Footer */}
+        <div className="bg-slate-50 py-4 border-t border-slate-100 text-center">
+          <p className="text-xs text-slate-400 font-medium">
+            Online Yoklama Sistemi © {new Date().getFullYear()}
+          </p>
+          <p className="text-xs text-slate-400 font-medium">
+            Created by pxrivizz
           </p>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════ */}
-      {/* Student Number Registration Modal              */}
-      {/* ═══════════════════════════════════════════════ */}
+      {/* Student Number Registration Modal */}
       {showStudentModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={handleCloseModal}
           role="presentation"
         >
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" style={{ animation: 'fadeIn 0.2s ease-out' }} />
 
-          {/* Modal */}
           <div
             className="relative bg-white rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] max-w-md w-full mx-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
@@ -271,7 +261,6 @@ export const Login = () => {
             aria-labelledby="student-modal-title"
             style={{ animation: 'scaleIn 0.25s ease-out' }}
           >
-            {/* Header with gradient */}
             <div className="bg-gradient-to-r from-[#1E3A5F] to-[#2a4d7a] px-6 py-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -294,9 +283,7 @@ export const Login = () => {
               </div>
             </div>
 
-            {/* Body */}
             <div className="px-6 py-6">
-              {/* User info card */}
               {pendingGoogleUser && (
                 <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 mb-5">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center flex-shrink-0">
@@ -346,7 +333,6 @@ export const Login = () => {
                   />
                 </div>
 
-                {/* Error message */}
                 {studentError && (
                   <div className="flex items-start gap-2 mt-2 mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl" style={{ animation: 'shakeX 0.4s ease-out' }}>
                     <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
@@ -358,13 +344,12 @@ export const Login = () => {
                   <p className="text-xs text-slate-400 mt-2 mb-4">Bu numara hesabınıza kalıcı olarak atanacaktır.</p>
                 )}
 
-                {/* Actions */}
                 <div className="flex gap-3 pt-2">
                   <Button
                     type="button"
                     variant="secondary"
                     size="lg"
-                    className="flex-1"
+                    className="flex-1 h-12 rounded-xl"
                     onClick={handleCloseModal}
                     disabled={isRegistering}
                   >
@@ -374,7 +359,7 @@ export const Login = () => {
                     type="submit"
                     variant="primary"
                     size="lg"
-                    className="flex-1"
+                    className="flex-1 h-12 rounded-xl bg-[#1E3A5F] hover:bg-[#152a45]"
                     loading={isRegistering}
                     disabled={isRegistering || !studentNumber.trim()}
                   >
@@ -387,7 +372,6 @@ export const Login = () => {
         </div>
       )}
 
-      {/* Inline keyframe styles for modal animations */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }

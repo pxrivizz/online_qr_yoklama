@@ -10,6 +10,12 @@ const attendanceRoutes = require('./routes/attendanceRoutes');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
+const rateLimit = require('express-rate-limit');
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+app.use('/api/', apiLimiter);
+
 // Create uploads directory on startup
 fs.mkdirSync(path.join(__dirname, '../../uploads/avatars'), { recursive: true });
 
