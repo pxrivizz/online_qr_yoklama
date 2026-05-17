@@ -70,6 +70,13 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true);
       const data = await authAPI.googleLogin(credential);
+
+      // If backend says we need student number, return the signal without logging in
+      if (data.requireStudentId) {
+        return { requireStudentId: true, googleUser: data.googleUser };
+      }
+
+      // Existing user — log them in
       const { token: authToken, user: userData } = data;
 
       localStorage.setItem('token', authToken);
@@ -77,6 +84,25 @@ export const AuthProvider = ({ children }) => {
       setToken(authToken);
       setUser(userData);
       toast.success('Google ile başarıyla giriş yapıldı!');
+      return userData;
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const registerStudent = async (credential, studentNumber) => {
+    try {
+      setIsLoading(true);
+      const data = await authAPI.registerStudent(credential, studentNumber);
+      const { token: authToken, user: userData } = data;
+
+      localStorage.setItem('token', authToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setToken(authToken);
+      setUser(userData);
+      toast.success('Kayıt başarılı! Hoş geldiniz.');
       return userData;
     } catch (error) {
       throw error;
@@ -99,9 +125,11 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     login,
     loginWithGoogle,
+    registerStudent,
     logout,
     isAuthenticated: !!token,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+

@@ -2,26 +2,36 @@ const { pool } = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
 const { generateQRToken } = require('../services/qrService');
 
+const runQuery = async (label, text, values) => {
+  console.log(`[DB QUERY] ${label}`, {
+    text,
+    values,
+  });
+
+  return pool.query(text, values);
+};
+
 const startSession = async (req, res) => {
   try {
-    const { course_id } = req.body;
+    const { course_id, session_number } = req.body;
 
     if (!course_id) {
       return res.status(400).json({ error: 'course_id is required' });
     }
 
     // Check if there's already an active session for this course
-    const activeCheck = await pool.query(
-      'SELECT id FROM attendance_sessions WHERE course_id = $1 AND is_active = true',
-      [course_id]
-    );
+    const activeCheckQuery = 'SELECT id FROM attendance_sessions WHERE course_id = $1 AND is_active = true';
+    const activeCheckValues = [course_id];
+    const activeCheck = await runQuery('startSession.activeCheck', activeCheckQuery, activeCheckValues);
 
     if (activeCheck.rows.length > 0) {
       return res.status(409).json({ error: 'An active session already exists for this course' });
     }
 
     // Verify the course exists and teacher owns it (if not admin)
-    const courseCheck = await pool.query('SELECT teacher_id FROM courses WHERE id = $1', [course_id]);
+    const courseCheckQuery = 'SELECT teacher_id, total_sessions_planned FROM courses WHERE id = $1';
+    const courseCheckValues = [course_id];
+    const courseCheck = await runQuery('startSession.courseCheck', courseCheckQuery, courseCheckValues);
 
     if (courseCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Course not found' });
@@ -33,22 +43,137 @@ const startSession = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: can only start sessions for your own courses' });
     }
 
-    // Generate QR token
+    // Validate session_number if provided
+    const sessNum = session_number ? parseInt(session_number, 10) : null;
+
+    if (sessNum !== null) {
+      if (isNaN(sessNum) || sessNum < 1) {
+        return res.status(400).json({ error: 'session_number must be a positive integer' });
+      }
+
+      const totalPlanned = course.total_sessions_planned || 0;
+      if (totalPlanned > 0 && sessNum > totalPlanned) {
+        return res.status(400).json({ error: `session_number (${sessNum}) exceeds total planned sessions (${totalPlanned})` });
+      }
+
+      // Check if a completed (non-manual) session already exists for this session_number
+      const existingSessionQuery = `SELECT id FROM attendance_sessions 
+         WHERE course_id = $1 AND session_number = $2 AND qr_token NOT LIKE 'manual_%'`;
+      const existingSessionValues = [course_id, sessNum];
+      const existingSession = await runQuery('startSession.existingSession', existingSessionQuery, existingSessionValues);
+
+      if (existingSession.rows.length > 0) {
+        return res.status(409).json({ error: `Bu ders için ${sessNum}. yoklama oturumu zaten oluşturulmuş` });
+      }
+    }
+
+    // Generate QR token with courseId and sessionNumber embedded
     const sessionId = uuidv4();
-    const qrToken = generateQRToken(sessionId);
+    const qrToken = generateQRToken(sessionId, course_id, sessNum);
     const expiresAt = new Date(Date.now() + 30 * 1000);
 
-    const result = await pool.query(
-      `INSERT INTO attendance_sessions (id, course_id, teacher_id, qr_token, token_expires_at, is_active)
-       VALUES ($1, $2, $3, $4, $5, true)
-       RETURNING id, course_id, teacher_id, qr_token, token_expires_at, started_at, is_active`,
-      [sessionId, course_id, req.user.id, qrToken, expiresAt]
-    );
+    console.log('attendance_sessions insert payload (startSession):', {
+      id: sessionId,
+      course_id,
+      teacher_id: req.user.id,
+      session_number: sessNum,
+      qr_token: qrToken,
+      qr_token_length: qrToken ? qrToken.length : 0,
+      token_expires_at: expiresAt,
+      is_active: true,
+    });
+
+    const insertSessionQuery = `INSERT INTO attendance_sessions (id, course_id, teacher_id, session_number, qr_token, token_expires_at, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active`;
+    const insertSessionValues = [sessionId, course_id, req.user.id, sessNum, qrToken, expiresAt];
+    const result = await runQuery('startSession.insertSession', insertSessionQuery, insertSessionValues);
 
     return res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Start session error:', error);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+
+const generateSessionQR = async (req, res) => {
+  try {
+    const { courseId, sessionNumber } = req.params;
+
+    if (!courseId) {
+      return res.status(400).json({ message: 'courseId is required' });
+    }
+
+    const sessNum = sessionNumber ? parseInt(sessionNumber, 10) : null;
+    if (sessNum === null || isNaN(sessNum) || sessNum < 1) {
+      return res.status(400).json({ message: 'Valid sessionNumber is required in URL' });
+    }
+
+    // Check if there's already an active session for this course
+    const activeCheckQuery = 'SELECT id FROM attendance_sessions WHERE course_id = $1 AND is_active = true';
+    const activeCheckValues = [courseId];
+    const activeCheck = await runQuery('generateSessionQR.activeCheck', activeCheckQuery, activeCheckValues);
+
+    if (activeCheck.rows.length > 0) {
+      return res.status(409).json({ message: 'An active session already exists for this course' });
+    }
+
+    // Verify the course exists and teacher owns it (if not admin)
+    const courseCheckQuery = 'SELECT teacher_id, total_sessions_planned FROM courses WHERE id = $1';
+    const courseCheckValues = [courseId];
+    const courseCheck = await runQuery('generateSessionQR.courseCheck', courseCheckQuery, courseCheckValues);
+
+    if (courseCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+
+    const course = courseCheck.rows[0];
+
+    if (req.user.role !== 'admin' && course.teacher_id !== req.user.id) {
+      return res.status(403).json({ message: 'Forbidden: can only start sessions for your own courses' });
+    }
+
+    const totalPlanned = course.total_sessions_planned || 0;
+    if (totalPlanned > 0 && sessNum > totalPlanned) {
+      return res.status(400).json({ message: `sessionNumber (${sessNum}) exceeds total planned sessions (${totalPlanned})` });
+    }
+
+    // Check if a completed (non-manual) session already exists for this session_number
+      const existingSessionQuery = `SELECT id FROM attendance_sessions 
+         WHERE course_id = $1 AND session_number = $2 AND qr_token NOT LIKE 'manual_%'`;
+      const existingSessionValues = [courseId, sessNum];
+      const existingSession = await runQuery('generateSessionQR.existingSession', existingSessionQuery, existingSessionValues);
+
+    if (existingSession.rows.length > 0) {
+      return res.status(409).json({ message: `Bu ders için ${sessNum}. yoklama oturumu zaten oluşturulmuş` });
+    }
+
+    // Generate QR token with courseId and sessionNumber embedded
+    const sessionId = uuidv4();
+    const qrToken = generateQRToken(sessionId, courseId, sessNum);
+    const expiresAt = new Date(Date.now() + 30 * 1000);
+
+    console.log('attendance_sessions insert payload (generateSessionQR):', {
+      id: sessionId,
+      course_id: courseId,
+      teacher_id: req.user.id,
+      session_number: sessNum,
+      qr_token: qrToken,
+      qr_token_length: qrToken ? qrToken.length : 0,
+      token_expires_at: expiresAt,
+      is_active: true,
+    });
+
+    const insertSessionQuery = `INSERT INTO attendance_sessions (id, course_id, teacher_id, session_number, qr_token, token_expires_at, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active`;
+    const insertSessionValues = [sessionId, courseId, req.user.id, sessNum, qrToken, expiresAt];
+    const result = await runQuery('generateSessionQR.insertSession', insertSessionQuery, insertSessionValues);
+
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Generate session QR error:', error);
+    return res.status(500).json({ message: error.message || 'Database connection failed or server error' });
   }
 };
 
@@ -57,7 +182,9 @@ const refreshQRToken = async (req, res) => {
     const { id } = req.params;
 
     // Get the session
-    const sessionCheck = await pool.query('SELECT * FROM attendance_sessions WHERE id = $1', [id]);
+    const sessionCheckQuery = 'SELECT * FROM attendance_sessions WHERE id = $1';
+    const sessionCheckValues = [id];
+    const sessionCheck = await runQuery('refreshQRToken.sessionCheck', sessionCheckQuery, sessionCheckValues);
 
     if (sessionCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Session not found' });
@@ -75,14 +202,20 @@ const refreshQRToken = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: not your session' });
     }
 
-    // Generate new QR token
-    const qrToken = generateQRToken(id);
+    // Generate new QR token with courseId and sessionNumber
+    const qrToken = generateQRToken(id, session.course_id, session.session_number);
     const expiresAt = new Date(Date.now() + 30 * 1000);
 
-    const result = await pool.query(
-      'UPDATE attendance_sessions SET qr_token = $1, token_expires_at = $2 WHERE id = $3 RETURNING qr_token, token_expires_at',
-      [qrToken, expiresAt, id]
-    );
+    console.log('attendance_sessions update payload (refreshQRToken):', {
+      id,
+      qr_token: qrToken,
+      qr_token_length: qrToken ? qrToken.length : 0,
+      token_expires_at: expiresAt,
+    });
+
+    const updateTokenQuery = 'UPDATE attendance_sessions SET qr_token = $1, token_expires_at = $2 WHERE id = $3 RETURNING qr_token, token_expires_at';
+    const updateTokenValues = [qrToken, expiresAt, id];
+    const result = await runQuery('refreshQRToken.updateToken', updateTokenQuery, updateTokenValues);
 
     return res.json(result.rows[0]);
   } catch (error) {
@@ -96,7 +229,9 @@ const endSession = async (req, res) => {
     const { id } = req.params;
 
     // Get the session
-    const sessionCheck = await pool.query('SELECT * FROM attendance_sessions WHERE id = $1', [id]);
+    const sessionCheckQuery = 'SELECT * FROM attendance_sessions WHERE id = $1';
+    const sessionCheckValues = [id];
+    const sessionCheck = await runQuery('endSession.sessionCheck', sessionCheckQuery, sessionCheckValues);
 
     if (sessionCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Session not found' });
@@ -110,10 +245,9 @@ const endSession = async (req, res) => {
     }
 
     // End the session
-    const result = await pool.query(
-      'UPDATE attendance_sessions SET is_active = false, ended_at = now() WHERE id = $1 RETURNING id, course_id, teacher_id, qr_token, token_expires_at, started_at, ended_at, is_active',
-      [id]
-    );
+    const endSessionQuery = 'UPDATE attendance_sessions SET is_active = false, ended_at = now() WHERE id = $1 RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, ended_at, is_active';
+    const endSessionValues = [id];
+    const result = await runQuery('endSession.endSession', endSessionQuery, endSessionValues);
 
     return res.json(result.rows[0]);
   } catch (error) {
@@ -127,15 +261,14 @@ const getSessionById = async (req, res) => {
     const { id } = req.params;
 
     // Get the session with course info
-    const result = await pool.query(
-      `SELECT s.id, s.course_id, s.teacher_id, s.qr_token, s.token_expires_at, s.started_at, s.ended_at, s.is_active,
+    const sessionQuery = `SELECT s.id, s.course_id, s.teacher_id, s.session_number, s.qr_token, s.token_expires_at, s.started_at, s.ended_at, s.is_active,
               c.name as course_name, c.code as course_code,
               (SELECT COUNT(*) FROM attendances WHERE session_id = s.id) as attendance_count
        FROM attendance_sessions s
        JOIN courses c ON s.course_id = c.id
-       WHERE s.id = $1`,
-      [id]
-    );
+       WHERE s.id = $1`;
+    const sessionValues = [id];
+    const result = await runQuery('getSessionById.session', sessionQuery, sessionValues);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Session not found' });
@@ -157,7 +290,7 @@ const getSessionById = async (req, res) => {
 
 const getActiveSessions = async (req, res) => {
   try {
-    let query = `SELECT s.id, s.course_id, s.teacher_id, s.qr_token, s.token_expires_at, s.started_at, s.is_active,
+    let query = `SELECT s.id, s.course_id, s.teacher_id, s.session_number, s.qr_token, s.token_expires_at, s.started_at, s.is_active,
                         c.name as course_name, c.code as course_code,
                         u.name as teacher_name,
                         (SELECT COUNT(*) FROM attendances WHERE session_id = s.id) as attendance_count
@@ -175,7 +308,7 @@ const getActiveSessions = async (req, res) => {
 
     query += ' ORDER BY s.started_at DESC';
 
-    const result = await pool.query(query, params);
+    const result = await runQuery('getActiveSessions.sessionList', query, params);
     return res.json(result.rows);
   } catch (error) {
     console.error('Get active sessions error:', error);
@@ -188,7 +321,9 @@ const getSessionAttendances = async (req, res) => {
     const { id } = req.params;
 
     // Verify session exists and get teacher info
-    const sessionCheck = await pool.query('SELECT teacher_id FROM attendance_sessions WHERE id = $1', [id]);
+    const sessionCheckQuery = 'SELECT teacher_id FROM attendance_sessions WHERE id = $1';
+    const sessionCheckValues = [id];
+    const sessionCheck = await runQuery('getSessionAttendances.sessionCheck', sessionCheckQuery, sessionCheckValues);
 
     if (sessionCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Session not found' });
@@ -202,16 +337,15 @@ const getSessionAttendances = async (req, res) => {
     }
 
     // Get attendance records
-    const result = await pool.query(
-      `SELECT a.id, a.marked_at, a.student_ip, a.student_latitude, a.student_longitude, 
+    const attendanceQuery = `SELECT a.id, a.marked_at, a.student_ip, a.student_latitude, a.student_longitude, 
               a.is_valid, a.rejection_reason,
               u.name as student_name, u.student_number
        FROM attendances a
        JOIN users u ON a.student_id = u.id
        WHERE a.session_id = $1
-       ORDER BY a.marked_at DESC`,
-      [id]
-    );
+       ORDER BY a.marked_at DESC`;
+    const attendanceValues = [id];
+    const result = await runQuery('getSessionAttendances.records', attendanceQuery, attendanceValues);
 
     return res.json(result.rows);
   } catch (error) {
@@ -224,7 +358,9 @@ const getCourseSessions = async (req, res) => {
   try {
     const { courseId } = req.params;
 
-    const courseCheck = await pool.query('SELECT teacher_id FROM courses WHERE id = $1', [courseId]);
+    const courseCheckQuery = 'SELECT teacher_id FROM courses WHERE id = $1';
+    const courseCheckValues = [courseId];
+    const courseCheck = await runQuery('getCourseSessions.courseCheck', courseCheckQuery, courseCheckValues);
     if (courseCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Course not found' });
     }
@@ -233,14 +369,13 @@ const getCourseSessions = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const result = await pool.query(
-      `SELECT s.id, s.started_at, s.ended_at, s.is_active,
+    const courseSessionsQuery = `SELECT s.id, s.session_number, s.started_at, s.ended_at, s.is_active,
               (SELECT COUNT(*) FROM attendances WHERE session_id = s.id AND is_valid = true) as attendance_count
        FROM attendance_sessions s
-       WHERE s.course_id = $1
-       ORDER BY s.started_at DESC`,
-      [courseId]
-    );
+       WHERE s.course_id = $1 AND s.qr_token NOT LIKE 'manual_%'
+       ORDER BY s.session_number ASC NULLS LAST, s.started_at DESC`;
+    const courseSessionsValues = [courseId];
+    const result = await runQuery('getCourseSessions.sessionList', courseSessionsQuery, courseSessionsValues);
 
     return res.json(result.rows);
   } catch (error) {
@@ -257,4 +392,5 @@ module.exports = {
   getActiveSessions,
   getSessionAttendances,
   getCourseSessions,
+  generateSessionQR,
 };

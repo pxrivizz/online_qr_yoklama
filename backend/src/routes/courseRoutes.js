@@ -31,6 +31,10 @@ router.get('/:id/export-attendance', authenticate, requireRole('admin', 'teacher
 // Import students via Excel JSON payload
 router.post('/:id/import-students', authenticate, requireRole('admin', 'teacher'), importCourseStudents);
 
+// Generate session QR
+const { generateSessionQR } = require('../controllers/sessionController');
+router.post('/:courseId/sessions/:sessionNumber/generate', authenticate, requireRole('teacher', 'admin'), generateSessionQR);
+
 // Protected route (only admin and teacher can create)
 router.post('/', authenticate, requireRole('admin', 'teacher'), createCourse);
 

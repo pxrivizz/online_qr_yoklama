@@ -7,7 +7,9 @@ export const authAPI = {
   googleLogin: (credential) =>
     api.post('/api/auth/google', { credential }).then((res) => res.data),
 
+  registerStudent: (credential, studentNumber) =>
+    api.post('/api/auth/register-student', { credential, studentNumber }).then((res) => res.data),
+
   getMe: () =>
     api.get('/api/auth/me'),
 };
-

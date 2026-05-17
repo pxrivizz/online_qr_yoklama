@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, MapPin, Edit2, Trash2, Play, CheckCircle2 } from 'lucide-react';
+import { Users, Clock, MapPin, Edit2, Trash2, Play, CheckCircle2, QrCode, StopCircle } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import ExcelJS from 'exceljs';
@@ -22,6 +22,7 @@ export const CourseDetail = () => {
   const [qrSession, setQrSession] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isStartingSession, setIsStartingSession] = useState(false);
+  const [startingSessionNumber, setStartingSessionNumber] = useState(null);
   const [isEndingSession, setIsEndingSession] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -298,20 +299,24 @@ export const CourseDetail = () => {
     refreshToken();
   }, [qrSession?.id, timeLeft, isRefreshing]);
 
-  const handleStartSession = async () => {
+  const handleStartSession = async (sessionNumber) => {
     setIsStartingSession(true);
+    setStartingSessionNumber(sessionNumber || null);
     try {
-      const response = await sessionAPI.startSession(id);
+      const response = await sessionAPI.startSession(id, sessionNumber);
       const payload = response?.data ?? response;
       setQrSession(payload);
       setIsQrModalOpen(true);
-      toast.success('Yoklama başlatıldı!');
+      toast.success(`${sessionNumber ? `${sessionNumber}. oturum yoklaması` : 'Yoklama'} başlatıldı!`);
       queryClient.invalidateQueries({ queryKey: ['activeSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['courseSessions', id] });
     } catch (error) {
-      console.error('Hata:', error);
-      toast.error(error?.response?.data?.error || error?.response?.data?.message || 'Yoklama başlatılamadı');
+      console.error('Session start error:', error.response?.data || error.message || error);
+      const errorMessage = error?.response?.data?.message || error?.response?.data?.error || 'Yoklama başlatılamadı';
+      toast.error(`Hata: ${errorMessage}`);
     } finally {
       setIsStartingSession(false);
+      setStartingSessionNumber(null);
     }
   };
 
@@ -327,6 +332,7 @@ export const CourseDetail = () => {
       await sessionAPI.endSession(sessionId);
       toast.success('Oturum sonlandırıldı');
       queryClient.invalidateQueries({ queryKey: ['activeSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['courseSessions', id] });
       if (qrSession?.id === sessionId) {
         setQrSession(null);
         setIsQrModalOpen(false);
@@ -400,8 +406,8 @@ export const CourseDetail = () => {
                   setIsQrModalOpen(true);
                 }}
               >
-                <CheckCircle2 size={18} />
-                QR Kodu
+                <QrCode size={18} />
+                Aktif QR
               </Button>
               <Button
                 variant="danger"
@@ -410,6 +416,7 @@ export const CourseDetail = () => {
                 onClick={handleEndSession}
                 loading={isEndingSession}
               >
+                <StopCircle size={18} />
                 Oturumu Bitir
               </Button>
             </>
@@ -418,11 +425,10 @@ export const CourseDetail = () => {
               variant="primary"
               size="md"
               className="gap-2"
-              onClick={handleStartSession}
-              loading={isStartingSession}
+              onClick={() => setActiveTab('sessions')}
             >
-              <Play size={18} />
-              Yoklama Başlat
+              <QrCode size={18} />
+              Yoklama Oturumları
             </Button>
           )}
         </div>
@@ -491,6 +497,15 @@ export const CourseDetail = () => {
           Öğrenci Listesi
         </button>
         <button
+          onClick={() => setActiveTab('sessions')}
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition-all duration-200 ${activeTab === 'sessions'
+              ? 'border-emerald-500 text-emerald-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+        >
+          Yoklama Oturumları
+        </button>
+        <button
           onClick={() => setActiveTab('history')}
           className={`px-4 py-3 text-sm font-semibold border-b-2 transition-all duration-200 ${activeTab === 'history'
               ? 'border-emerald-500 text-emerald-600'
@@ -501,7 +516,129 @@ export const CourseDetail = () => {
         </button>
       </div>
 
-      {activeTab === 'students' ? (
+      {activeTab === 'sessions' ? (
+        <Card>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
+            <div>
+              <h2 className="section-title">Ders İçi Yoklama Oturumları</h2>
+              <p className="text-sm text-slate-500 mt-1">Her oturum için ayrı QR kod oluşturun</p>
+            </div>
+          </div>
+
+          {totalPlanned === 0 ? (
+            <div className="text-amber-700 bg-amber-50 p-4 rounded-xl text-sm border border-amber-200">
+              ⚠️ Bu ders için henüz yoklama sayısı belirlenmemiş. Dersi düzenleyerek toplam yoklama sayısını girin.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {sessionColumns.map((sessionIndex) => {
+                const existingSession = courseSessions?.find(s => s.session_number === sessionIndex);
+                const isSessionActive = existingSession?.is_active === true;
+                const isCompleted = existingSession && !existingSession.is_active;
+                const attendanceCount = existingSession?.attendance_count || 0;
+                const isThisStarting = isStartingSession && startingSessionNumber === sessionIndex;
+
+                return (
+                  <div
+                    key={sessionIndex}
+                    className={`relative rounded-2xl border-2 p-5 transition-all duration-300 ${
+                      isSessionActive
+                        ? 'border-emerald-400 bg-emerald-50/50 shadow-lg shadow-emerald-500/10'
+                        : isCompleted
+                          ? 'border-slate-200 bg-slate-50/50'
+                          : 'border-dashed border-slate-300 bg-white hover:border-slate-400 hover:shadow-sm'
+                    }`}
+                  >
+                    {/* Status badge */}
+                    {isSessionActive && (
+                      <div className="absolute -top-2.5 right-3 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-xs font-bold shadow-sm">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        Aktif
+                      </div>
+                    )}
+                    {isCompleted && (
+                      <div className="absolute -top-2.5 right-3 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-500 text-white text-xs font-bold shadow-sm">
+                        <CheckCircle2 size={11} />
+                        Tamamlandı
+                      </div>
+                    )}
+
+                    {/* Week number */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-extrabold ${
+                        isSessionActive
+                          ? 'bg-emerald-500 text-white'
+                          : isCompleted
+                            ? 'bg-slate-200 text-slate-600'
+                            : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {sessionIndex}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm">{sessionIndex}. Oturum</h3>
+                        {isCompleted && (
+                          <p className="text-xs text-slate-500">
+                            {attendanceCount} katılım • {new Date(existingSession.started_at).toLocaleDateString('tr-TR')}
+                          </p>
+                        )}
+                        {isSessionActive && (
+                          <p className="text-xs text-emerald-600 font-medium">Şu an aktif</p>
+                        )}
+                        {!isCompleted && !isSessionActive && (
+                          <p className="text-xs text-slate-400">Henüz başlatılmadı</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action button */}
+                    {isSessionActive ? (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQrSession(existingSession);
+                            setIsQrModalOpen(true);
+                          }}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-all duration-200 active:scale-[0.97]"
+                        >
+                          <QrCode size={14} />
+                          QR Göster
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleEndSession}
+                          disabled={isEndingSession}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-all duration-200 active:scale-[0.97] disabled:opacity-50"
+                        >
+                          <StopCircle size={14} />
+                        </button>
+                      </div>
+                    ) : isCompleted ? (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-100 px-3 py-2.5 rounded-xl">
+                        <CheckCircle2 size={14} className="text-slate-400" />
+                        <span className="font-medium">{attendanceCount} öğrenci katıldı</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleStartSession(sessionIndex)}
+                        disabled={isStartingSession || isActive}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isThisStarting ? (
+                          <><div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> Başlatılıyor...</>
+                        ) : (
+                          <><Play size={14} /> Yoklama Başlat</>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      ) : activeTab === 'students' ? (
         <Card>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
             <h2 className="section-title">Öğrenci Listesi & Yoklama</h2>
@@ -817,6 +954,11 @@ export const CourseDetail = () => {
             <div className="text-center mb-4">
               <h3 className="text-xl font-bold text-slate-900">{course.name}</h3>
               <p className="text-sm text-slate-500 font-mono">{course.code}</p>
+              {qrSession?.session_number && (
+                <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                  📅 {qrSession.session_number}. Oturum
+                </span>
+              )}
             </div>
           )}
 

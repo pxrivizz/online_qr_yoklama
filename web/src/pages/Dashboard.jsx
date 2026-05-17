@@ -176,7 +176,7 @@ export const Dashboard = () => {
   // Teacher/Admin Dashboard
   return (
     <div className="space-y-8">
-      <div className="animate-slide-up mb-6">
+      <div className="animate-slide-up">
         <h1 className="page-title">Hoş Geldiniz 👋</h1>
         <p className="page-subtitle">Bugün yapmanız gereken işleri burada görebilirsiniz</p>
       </div>

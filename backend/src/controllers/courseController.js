@@ -199,8 +199,11 @@ const updateCourse = async (req, res) => {
 const getCourseStudents = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.student_number, cs.is_mandatory, cs.enrollment_type
+
+    // 1. Get registered students enrolled in this course
+    const registeredResult = await pool.query(
+      `SELECT u.id, u.name, u.email, u.student_number, cs.is_mandatory, cs.enrollment_type,
+              'active' as status
        FROM users u
        JOIN course_students cs ON cs.student_id = u.id
        WHERE cs.course_id = $1
@@ -208,7 +211,22 @@ const getCourseStudents = async (req, res) => {
       [id]
     );
 
-    return res.json(result.rows);
+    // 2. Get pending (not yet registered) students for this course
+    const pendingResult = await pool.query(
+      `SELECT pe.id as pending_id, pe.student_name as name, pe.student_number, 
+              pe.is_mandatory, pe.enrollment_type,
+              NULL as id, NULL as email,
+              'pending' as status
+       FROM pending_enrollments pe
+       WHERE pe.course_id = $1
+       ORDER BY pe.student_name`,
+      [id]
+    );
+
+    // Combine both lists
+    const allStudents = [...registeredResult.rows, ...pendingResult.rows];
+
+    return res.json(allStudents);
   } catch (error) {
     console.error('Get course students error:', error);
     return res.status(500).json({ error: 'Server error' });
@@ -318,6 +336,7 @@ const exportAttendance = async (req, res) => {
 
 
 const importCourseStudents = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id: courseId } = req.params;
     const { students } = req.body;
@@ -326,74 +345,94 @@ const importCourseStudents = async (req, res) => {
       return res.status(400).json({ error: 'Students array is required and must not be empty' });
     }
 
-    let addedCount = 0;
-    let updatedCount = 0;
+    // Verify the course exists
+    const courseCheck = await client.query('SELECT id FROM courses WHERE id = $1', [courseId]);
+    if (courseCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    await client.query('BEGIN');
+
+    let enrolledCount = 0;   // Already-registered students linked directly
+    let updatedCount = 0;    // Existing enrollments updated
+    let pendingCount = 0;    // Students not yet registered → stored as pending
+    let skippedCount = 0;    // Rows without student_number
 
     for (const student of students) {
       const { student_number, name, is_mandatory, enrollment_type } = student;
 
-      if (!student_number || !name) continue;
+      if (!student_number) {
+        skippedCount++;
+        continue;
+      }
 
-      // Determine is_mandatory: use provided value, fallback to true
+      const trimmedNumber = String(student_number).trim();
+      const studentName = name || `Öğrenci ${trimmedNumber}`;
+
+      // Determine enrollment attributes
       const mandatory = typeof is_mandatory === 'boolean' ? is_mandatory : true;
-      // Determine enrollment_type: use provided value, fallback based on is_mandatory
       const enrollType = enrollment_type || (mandatory ? 'zorunlu' : 'alttan');
 
-      // 1. Check if student already exists by student_number or generated email
-      const defaultEmail = `${student_number}@posta.mu.edu.tr`;
-      let studentId;
-
-      const userCheck = await pool.query(
-        'SELECT id FROM users WHERE student_number = $1 OR email = $2',
-        [student_number, defaultEmail]
+      // 1. Check if a registered user with this student_number exists
+      const userCheck = await client.query(
+        'SELECT id FROM users WHERE student_number = $1',
+        [trimmedNumber]
       );
 
       if (userCheck.rows.length > 0) {
-        studentId = userCheck.rows[0].id;
-      } else {
-        // Create new user
-        studentId = uuidv4();
-        
-        await pool.query(
-          `INSERT INTO users (id, name, email, password, role, student_number)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [studentId, name, defaultEmail, 'Password123', 'student', student_number]
-        );
-      }
+        // Student is registered — link them directly to the course
+        const studentId = userCheck.rows[0].id;
 
-      // 2. Enroll student into course — insert or update is_mandatory & enrollment_type
-      const enrollCheck = await pool.query(
-        'SELECT * FROM course_students WHERE course_id = $1 AND student_id = $2',
-        [courseId, studentId]
-      );
+        const enrollCheck = await client.query(
+          'SELECT 1 FROM course_students WHERE course_id = $1 AND student_id = $2',
+          [courseId, studentId]
+        );
 
-      if (enrollCheck.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO course_students (course_id, student_id, is_mandatory, enrollment_type)
-           VALUES ($1, $2, $3, $4)`,
-          [courseId, studentId, mandatory, enrollType]
-        );
-        addedCount++;
+        if (enrollCheck.rows.length === 0) {
+          await client.query(
+            `INSERT INTO course_students (course_id, student_id, is_mandatory, enrollment_type)
+             VALUES ($1, $2, $3, $4)`,
+            [courseId, studentId, mandatory, enrollType]
+          );
+          enrolledCount++;
+        } else {
+          // Update existing enrollment with fresh status from Excel
+          await client.query(
+            `UPDATE course_students SET is_mandatory = $1, enrollment_type = $2
+             WHERE course_id = $3 AND student_id = $4`,
+            [mandatory, enrollType, courseId, studentId]
+          );
+          updatedCount++;
+        }
       } else {
-        // Update existing enrollment with new status from Excel
-        await pool.query(
-          `UPDATE course_students SET is_mandatory = $1, enrollment_type = $2
-           WHERE course_id = $3 AND student_id = $4`,
-          [mandatory, enrollType, courseId, studentId]
+        // Student NOT registered yet — store as pending enrollment
+        await client.query(
+          `INSERT INTO pending_enrollments (course_id, student_number, student_name, enrollment_type, is_mandatory)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (course_id, student_number) DO UPDATE
+           SET student_name = $3, enrollment_type = $4, is_mandatory = $5`,
+          [courseId, trimmedNumber, studentName, enrollType, mandatory]
         );
-        updatedCount++;
+        pendingCount++;
       }
     }
 
+    await client.query('COMMIT');
+
     return res.status(200).json({
       success: true,
-      added_count: addedCount,
+      enrolled_count: enrolledCount,
       updated_count: updatedCount,
+      pending_count: pendingCount,
+      skipped_count: skippedCount,
       total: students.length,
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Import course students error:', error);
     return res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 };
 
@@ -452,7 +491,10 @@ const deleteCourse = async (req, res) => {
     // Step 4: Delete course_students
     await client.query('DELETE FROM course_students WHERE course_id = $1', [id]);
 
-    // Step 5: Delete course
+    // Step 5: Delete pending_enrollments
+    await client.query('DELETE FROM pending_enrollments WHERE course_id = $1', [id]);
+
+    // Step 6: Delete course
     await client.query('DELETE FROM courses WHERE id = $1', [id]);
 
     await client.query('COMMIT');

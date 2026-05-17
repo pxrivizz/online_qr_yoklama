@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import toast from 'react-hot-toast';
 import { GoogleLogin } from '@react-oauth/google';
+import { GraduationCap, AlertCircle, User, X } from 'lucide-react';
 
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '630910368260-49do92os2tnu416lsv1qko5btdnccrik.apps.googleusercontent.com';
 if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
@@ -16,8 +17,17 @@ export const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, loginWithGoogle, isAuthenticated, user } = useAuth();
+  const { login, loginWithGoogle, registerStudent, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+
+  // Student number modal state
+  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [studentNumber, setStudentNumber] = useState('');
+  const [studentError, setStudentError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [pendingCredential, setPendingCredential] = useState(null);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
+  const studentInputRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,8 +53,22 @@ export const Login = () => {
     try {
       setIsLoading(true);
       setError('');
-      const loggedInUser = await loginWithGoogle(credentialResponse.credential);
-      if (loggedInUser?.role === 'student') {
+      const result = await loginWithGoogle(credentialResponse.credential);
+
+      // Check if backend requires student number
+      if (result?.requireStudentId) {
+        setPendingCredential(credentialResponse.credential);
+        setPendingGoogleUser(result.googleUser);
+        setShowStudentModal(true);
+        setStudentNumber('');
+        setStudentError('');
+        // Focus the input after modal renders
+        setTimeout(() => studentInputRef.current?.focus(), 150);
+        return;
+      }
+
+      // Existing user logged in successfully
+      if (result?.role === 'student') {
         navigate('/student/dashboard', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
@@ -61,6 +85,50 @@ export const Login = () => {
   const handleGoogleError = () => {
     console.error("Google Login Failed");
     toast.error('Google ile giriş başarısız oldu.');
+  };
+
+  const handleStudentRegister = async (e) => {
+    e.preventDefault();
+    setStudentError('');
+
+    if (!studentNumber.trim()) {
+      setStudentError('Öğrenci numarası zorunludur.');
+      return;
+    }
+
+    if (!/^\d+$/.test(studentNumber.trim())) {
+      setStudentError('Öğrenci numarası sadece rakamlardan oluşmalıdır.');
+      return;
+    }
+
+    setIsRegistering(true);
+    try {
+      const registeredUser = await registerStudent(pendingCredential, studentNumber.trim());
+      setShowStudentModal(false);
+      setPendingCredential(null);
+      setPendingGoogleUser(null);
+
+      if (registeredUser?.role === 'student') {
+        navigate('/student/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    } catch (err) {
+      const message = err?.response?.data?.error || 'Kayıt sırasında bir hata oluştu.';
+      setStudentError(message);
+      // Don't close modal on error — let user fix and retry
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    if (isRegistering) return;
+    setShowStudentModal(false);
+    setPendingCredential(null);
+    setPendingGoogleUser(null);
+    setStudentNumber('');
+    setStudentError('');
   };
 
   return (
@@ -182,6 +250,161 @@ export const Login = () => {
           </p>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════ */}
+      {/* Student Number Registration Modal              */}
+      {/* ═══════════════════════════════════════════════ */}
+      {showStudentModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={handleCloseModal}
+          role="presentation"
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" style={{ animation: 'fadeIn 0.2s ease-out' }} />
+
+          {/* Modal */}
+          <div
+            className="relative bg-white rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] max-w-md w-full mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="student-modal-title"
+            style={{ animation: 'scaleIn 0.25s ease-out' }}
+          >
+            {/* Header with gradient */}
+            <div className="bg-gradient-to-r from-[#1E3A5F] to-[#2a4d7a] px-6 py-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
+                    <GraduationCap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 id="student-modal-title" className="text-lg font-bold text-white">Kayıt Tamamla</h2>
+                    <p className="text-xs text-slate-300">Öğrenci numaranızı girin</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseModal}
+                  disabled={isRegistering}
+                  className="p-2 -m-1 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 disabled:opacity-50"
+                  aria-label="Kapat"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-6">
+              {/* User info card */}
+              {pendingGoogleUser && (
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 mb-5">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center flex-shrink-0">
+                    {pendingGoogleUser.picture ? (
+                      <img
+                        src={pendingGoogleUser.picture}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <User className="w-5 h-5 text-white" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{pendingGoogleUser.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{pendingGoogleUser.email}</p>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleStudentRegister}>
+                <div className="mb-1">
+                  <label htmlFor="studentNumber" className="block text-sm font-semibold text-slate-700 mb-2">
+                    Öğrenci Numarası
+                  </label>
+                  <input
+                    ref={studentInputRef}
+                    id="studentNumber"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={studentNumber}
+                    onChange={(e) => {
+                      setStudentNumber(e.target.value);
+                      if (studentError) setStudentError('');
+                    }}
+                    className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all duration-200 outline-none bg-white
+                      ${studentError
+                        ? 'border-rose-300 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10'
+                        : 'border-slate-200 focus:border-[#1E3A5F] focus:ring-4 focus:ring-[#1E3A5F]/10'
+                      }
+                      placeholder:text-slate-400`}
+                    placeholder="Örn: 220501001"
+                    autoComplete="off"
+                    disabled={isRegistering}
+                  />
+                </div>
+
+                {/* Error message */}
+                {studentError && (
+                  <div className="flex items-start gap-2 mt-2 mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl" style={{ animation: 'shakeX 0.4s ease-out' }}>
+                    <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-rose-700 font-medium">{studentError}</p>
+                  </div>
+                )}
+
+                {!studentError && (
+                  <p className="text-xs text-slate-400 mt-2 mb-4">Bu numara hesabınıza kalıcı olarak atanacaktır.</p>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className="flex-1"
+                    onClick={handleCloseModal}
+                    disabled={isRegistering}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="lg"
+                    className="flex-1"
+                    loading={isRegistering}
+                    disabled={isRegistering || !studentNumber.trim()}
+                  >
+                    {isRegistering ? 'Kaydediliyor...' : 'Kayıt Ol'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline keyframe styles for modal animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.95) translateY(10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes shakeX {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+        }
+      `}</style>
     </div>
   );
 };

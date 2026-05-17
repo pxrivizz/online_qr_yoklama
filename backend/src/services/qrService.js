@@ -1,8 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-const generateQRToken = (sessionId) => {
+const generateQRToken = (sessionId, courseId, sessionNumber) => {
+  const payload = { sessionId, type: 'qr' };
+  if (courseId) payload.courseId = courseId;
+  if (sessionNumber) payload.sessionNumber = sessionNumber;
+
   const token = jwt.sign(
-    { sessionId, type: 'qr' },
+    payload,
     process.env.JWT_SECRET,
     { expiresIn: '30s' }
   );

@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS attendance_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   course_id UUID NOT NULL,
   teacher_id UUID NOT NULL,
-  qr_token VARCHAR(255) UNIQUE NOT NULL,
+  session_number INTEGER,
+  qr_token TEXT UNIQUE NOT NULL,
   token_expires_at TIMESTAMP NOT NULL,
   started_at TIMESTAMP DEFAULT now(),
   ended_at TIMESTAMP,
@@ -73,6 +74,12 @@ CREATE TABLE IF NOT EXISTS attendance_sessions (
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- Fix qr_token length for existing databases
+ALTER TABLE attendance_sessions ALTER COLUMN qr_token TYPE TEXT;
+
+-- Add session_number column if not exists (for existing databases)
+ALTER TABLE attendance_sessions ADD COLUMN IF NOT EXISTS session_number INTEGER;
 
 -- Attendances table
 CREATE TABLE IF NOT EXISTS attendances (
@@ -95,6 +102,27 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_sessions_qr_token ON attendance_sessions(qr_token);
 CREATE INDEX IF NOT EXISTS idx_attendances_session_id ON attendances(session_id);
+
+-- Unique constraint on student_number (only for non-null values)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_student_number_unique ON users(student_number) WHERE student_number IS NOT NULL;
+
+-- Pending enrollments: holds course enrollments for students who haven't registered yet.
+-- When a teacher uploads an Excel list and the student_number doesn't match any registered user,
+-- the enrollment is stored here. When the student later registers (provides their student_number),
+-- these rows are resolved into real course_students records and deleted from this table.
+CREATE TABLE IF NOT EXISTS pending_enrollments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id UUID NOT NULL,
+  student_number VARCHAR(20) NOT NULL,
+  student_name VARCHAR(100),
+  enrollment_type VARCHAR(20) DEFAULT 'zorunlu',
+  is_mandatory BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT now(),
+  UNIQUE (course_id, student_number),
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_enrollments_student_number ON pending_enrollments(student_number);
 
 INSERT INTO users (name, email, password, role)
 VALUES ('Halil Çiftçi', 'halilciftci@posta.mu.edu.tr', 'halil2006', 'admin')

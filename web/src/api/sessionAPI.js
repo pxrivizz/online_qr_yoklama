@@ -1,8 +1,12 @@
 import api from './axios';
 
 export const sessionAPI = {
-  startSession: (courseId) =>
-    api.post('/api/sessions/start', { course_id: courseId }).then((res) => res.data),
+  startSession: (courseId, sessionNumber) => {
+    if (sessionNumber) {
+      return api.post(`/api/courses/${courseId}/sessions/${sessionNumber}/generate`).then((res) => res.data);
+    }
+    return api.post('/api/sessions/start', { course_id: courseId }).then((res) => res.data);
+  },
 
   getActiveSessions: () =>
     api.get('/api/sessions/active').then((res) => {
