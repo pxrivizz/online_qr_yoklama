@@ -4,13 +4,19 @@ import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import toast from 'react-hot-toast';
+import { GoogleLogin } from '@react-oauth/google';
+
+const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '630910368260-49do92os2tnu416lsv1qko5btdnccrik.apps.googleusercontent.com';
+if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+  console.warn('VITE_GOOGLE_CLIENT_ID is not set. Using fallback client ID.');
+}
 
 export const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, loginWithGoogle, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -31,6 +37,30 @@ export const Login = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setIsLoading(true);
+      setError('');
+      const loggedInUser = await loginWithGoogle(credentialResponse.credential);
+      if (loggedInUser?.role === 'student') {
+        navigate('/student/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    } catch (err) {
+      const message = err?.response?.data?.error || 'Google ile giriş başarısız oldu.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    console.error("Google Login Failed");
+    toast.error('Google ile giriş başarısız oldu.');
   };
 
   return (
@@ -128,6 +158,23 @@ export const Login = () => {
                 {isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
               </Button>
             </form>
+
+            <div className="mt-6 flex items-center justify-between">
+              <span className="border-b w-1/5 border-slate-200 lg:w-1/4"></span>
+              <span className="text-xs text-center text-slate-500 uppercase font-medium">veya şununla devam et</span>
+              <span className="border-b w-1/5 border-slate-200 lg:w-1/4"></span>
+            </div>
+
+            <div className="mt-6 flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                shape="rectangular"
+                theme="outline"
+                size="large"
+                text="continue_with"
+              />
+            </div>
           </Card>
 
           <p className="text-center text-xs text-slate-400 mt-6">

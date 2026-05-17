@@ -200,7 +200,7 @@ const getCourseStudents = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.student_number, cs.is_mandatory
+      `SELECT u.id, u.name, u.email, u.student_number, cs.is_mandatory, cs.enrollment_type
        FROM users u
        JOIN course_students cs ON cs.student_id = u.id
        WHERE cs.course_id = $1
@@ -327,11 +327,17 @@ const importCourseStudents = async (req, res) => {
     }
 
     let addedCount = 0;
+    let updatedCount = 0;
 
     for (const student of students) {
-      const { student_number, name } = student;
+      const { student_number, name, is_mandatory, enrollment_type } = student;
 
       if (!student_number || !name) continue;
+
+      // Determine is_mandatory: use provided value, fallback to true
+      const mandatory = typeof is_mandatory === 'boolean' ? is_mandatory : true;
+      // Determine enrollment_type: use provided value, fallback based on is_mandatory
+      const enrollType = enrollment_type || (mandatory ? 'zorunlu' : 'alttan');
 
       // 1. Check if student already exists by student_number or generated email
       const defaultEmail = `${student_number}@posta.mu.edu.tr`;
@@ -355,7 +361,7 @@ const importCourseStudents = async (req, res) => {
         );
       }
 
-      // 2. Enroll student into course if not already enrolled
+      // 2. Enroll student into course — insert or update is_mandatory & enrollment_type
       const enrollCheck = await pool.query(
         'SELECT * FROM course_students WHERE course_id = $1 AND student_id = $2',
         [courseId, studentId]
@@ -363,18 +369,26 @@ const importCourseStudents = async (req, res) => {
 
       if (enrollCheck.rows.length === 0) {
         await pool.query(
-          `INSERT INTO course_students (course_id, student_id, is_mandatory)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (course_id, student_id) DO UPDATE SET is_mandatory = $3`,
-          [courseId, studentId, true]
+          `INSERT INTO course_students (course_id, student_id, is_mandatory, enrollment_type)
+           VALUES ($1, $2, $3, $4)`,
+          [courseId, studentId, mandatory, enrollType]
         );
         addedCount++;
+      } else {
+        // Update existing enrollment with new status from Excel
+        await pool.query(
+          `UPDATE course_students SET is_mandatory = $1, enrollment_type = $2
+           WHERE course_id = $3 AND student_id = $4`,
+          [mandatory, enrollType, courseId, studentId]
+        );
+        updatedCount++;
       }
     }
 
     return res.status(200).json({
       success: true,
       added_count: addedCount,
+      updated_count: updatedCount,
       total: students.length,
     });
   } catch (error) {

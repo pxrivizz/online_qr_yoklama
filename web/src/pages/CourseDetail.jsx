@@ -76,6 +76,8 @@ export const CourseDetail = () => {
       const mapped = parsed.students.map((student) => ({
         student_number: student.student_number,
         name: student.full_name,
+        is_mandatory: student.is_mandatory,
+        enrollment_type: student.enrollment_type || 'zorunlu',
       }));
 
       setParsedImportStudents(mapped);
@@ -172,10 +174,14 @@ export const CourseDetail = () => {
         ? Math.round((totalAttended / totalPlanned) * 100)
         : 0;
 
+      const enrollmentType = student.enrollment_type || (student.is_mandatory ? 'zorunlu' : 'alttan');
+      const statusLabel = enrollmentType === 'alttan' ? 'Alttan' :
+                           enrollmentType === 'secmeli' ? 'Seçmeli' : 'Zorunlu';
+
       const row = [
         student.name,
         student.student_number,
-        student.is_mandatory ? 'Zorunlu' : 'Alttan'
+        statusLabel
       ];
 
       for (let i = 1; i <= totalPlanned; i++) {
@@ -186,11 +192,19 @@ export const CourseDetail = () => {
       const dataRow = worksheet.addRow(row);
 
       // Yellow background for alttan students
-      if (!student.is_mandatory) {
+      if (enrollmentType === 'alttan') {
         dataRow.fill = {
           type: 'pattern',
           pattern: 'solid',
           fgColor: { argb: 'FFFFF9C4' }
+        };
+      }
+      // Blue background for secmeli students
+      if (enrollmentType === 'secmeli') {
+        dataRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0F2FE' }
         };
       }
     });
@@ -522,6 +536,10 @@ export const CourseDetail = () => {
               <span className="text-slate-600 font-medium">Katılmadı</span>
             </div>
             <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-sky-100 border border-sky-300 inline-block" />
+              <span className="text-slate-600 font-medium">Seçmeli öğrenci</span>
+            </div>
+            <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-amber-100 border border-amber-300 inline-block" />
               <span className="text-slate-600 font-medium">Alttan alan öğrenci</span>
             </div>
@@ -567,7 +585,11 @@ export const CourseDetail = () => {
                     }
 
                     return (
-                      <tr key={student.id} className={student.is_mandatory ? 'bg-white hover:bg-slate-50/50' : 'bg-amber-50/50 hover:bg-amber-50'}>
+                      <tr key={student.id} className={
+                        student.enrollment_type === 'alttan' ? 'bg-amber-50/50 hover:bg-amber-50' :
+                        student.enrollment_type === 'secmeli' ? 'bg-sky-50/50 hover:bg-sky-50' :
+                        'bg-white hover:bg-slate-50/50'
+                      }>
                         <td className="px-4 py-3 sticky left-0 bg-white border-r border-slate-200 z-10">
                           <div className="flex items-center gap-3">
                             {student.avatar_url ? (
@@ -585,8 +607,11 @@ export const CourseDetail = () => {
                             )}
                             <div>
                               <span className="font-medium text-slate-900 text-sm truncate">{student.name}</span>
-                              {!student.is_mandatory && (
+                              {student.enrollment_type === 'alttan' && (
                                 <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-semibold">Alttan</span>
+                              )}
+                              {student.enrollment_type === 'secmeli' && (
+                                <span className="ml-2 text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-md font-semibold">Seçmeli</span>
                               )}
                             </div>
                           </div>
@@ -855,9 +880,22 @@ export const CourseDetail = () => {
 
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
             {parsedImportStudents.length > 0 ? (
-              <span className="text-emerald-600 font-medium">
-                ✓ {parsedImportStudents.length} geçerli öğrenci okundu.
-              </span>
+              <div>
+                <span className="text-emerald-600 font-medium">
+                  ✓ {parsedImportStudents.length} geçerli öğrenci okundu.
+                </span>
+                <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                  <span className="px-2 py-1 bg-white rounded-lg border border-slate-200">
+                    Zorunlu: {parsedImportStudents.filter(s => s.enrollment_type === 'zorunlu').length}
+                  </span>
+                  <span className="px-2 py-1 bg-sky-50 rounded-lg border border-sky-200 text-sky-700">
+                    Seçmeli: {parsedImportStudents.filter(s => s.enrollment_type === 'secmeli').length}
+                  </span>
+                  <span className="px-2 py-1 bg-amber-50 rounded-lg border border-amber-200 text-amber-700">
+                    Alttan: {parsedImportStudents.filter(s => s.enrollment_type === 'alttan').length}
+                  </span>
+                </div>
+              </div>
             ) : importFile ? (
               <span className="text-amber-600">Dosya okunuyor / geçersiz veri...</span>
             ) : (

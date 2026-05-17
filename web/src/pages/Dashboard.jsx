@@ -176,8 +176,7 @@ export const Dashboard = () => {
   // Teacher/Admin Dashboard
   return (
     <div className="space-y-8">
-      {/* Welcome Section */}
-      <div className="animate-slide-up">
+      <div className="animate-slide-up mb-6">
         <h1 className="page-title">Hoş Geldiniz 👋</h1>
         <p className="page-subtitle">Bugün yapmanız gereken işleri burada görebilirsiniz</p>
       </div>
@@ -203,14 +202,13 @@ export const Dashboard = () => {
         <StatCard
           icon={<CheckCircle2 className="w-6 h-6" />}
           label="Bugünkü Yoklama"
-          value="0"
+          value="0" // Şu kısımda bug var bunun düzelt
           color="bg-violet-50"
           iconColor="text-violet-600"
           borderColor="border-violet-100"
         />
       </div>
 
-      {/* My Courses Section */}
       <div>
         <div className="flex items-center justify-between mb-5">
           <h2 className="section-title">Derslerim</h2>
@@ -220,7 +218,6 @@ export const Dashboard = () => {
           </Button>
         </div>
 
-        {/* Courses Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {isCoursesLoading ? (
             Array.from({ length: 3 }).map((_, i) => (

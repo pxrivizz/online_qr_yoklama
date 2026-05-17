@@ -389,6 +389,7 @@ async function getStudentAttendanceSummary(req, res) {
         u.student_number,
         u.avatar_url,
         cs.is_mandatory,
+        cs.enrollment_type,
         ARRAY(
           SELECT CAST(split_part(s2.qr_token, '_', 3) AS INTEGER)
           FROM attendances a2
@@ -404,7 +405,7 @@ async function getStudentAttendanceSummary(req, res) {
       LEFT JOIN attendance_sessions s ON s.course_id = cs.course_id
       LEFT JOIN attendances a ON a.session_id = s.id AND a.student_id = u.id
       WHERE cs.course_id = $1
-      GROUP BY u.id, u.name, u.student_number, cs.is_mandatory
+      GROUP BY u.id, u.name, u.student_number, u.avatar_url, cs.is_mandatory, cs.enrollment_type
       ORDER BY u.name`,
       [course_id]
     );
@@ -413,7 +414,9 @@ async function getStudentAttendanceSummary(req, res) {
       id: row.student_id || row.id,
       name: row.name,
       student_number: row.student_number,
+      avatar_url: row.avatar_url,
       is_mandatory: row.is_mandatory,
+      enrollment_type: row.enrollment_type || (row.is_mandatory ? 'zorunlu' : 'alttan'),
       manual_indexes: row.manual_indexes || [],
       total_attended: (row.manual_indexes ? row.manual_indexes.length : 0) + Number(row.qr_attended_count || 0)
     }));

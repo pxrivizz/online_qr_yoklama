@@ -5,15 +5,22 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(100) NOT NULL,
   email VARCHAR(150) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
+  password VARCHAR(255),
   role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'teacher', 'student')),
   student_number VARCHAR(20),
   avatar_url VARCHAR(255),
+  auth_provider VARCHAR(20) DEFAULT 'local',
   created_at TIMESTAMP DEFAULT now()
 );
 
 -- Add avatar_url column if not exists (for existing databases)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255);
+
+-- Add auth_provider column if not exists (for existing databases)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(20) DEFAULT 'local';
+
+-- Allow password to be NULL for Google OAuth users
+ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
 
 -- Rename password_hash to password if it exists (for existing databases)
 DO $$
@@ -48,6 +55,7 @@ CREATE TABLE IF NOT EXISTS course_students (
 );
 
 ALTER TABLE course_students ADD COLUMN IF NOT EXISTS is_mandatory BOOLEAN DEFAULT true;
+ALTER TABLE course_students ADD COLUMN IF NOT EXISTS enrollment_type VARCHAR(20) DEFAULT 'zorunlu';
 
 -- Add total planned sessions for courses
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS total_sessions_planned INTEGER DEFAULT 0;

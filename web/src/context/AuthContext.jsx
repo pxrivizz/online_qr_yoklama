@@ -66,6 +66,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (credential) => {
+    try {
+      setIsLoading(true);
+      const data = await authAPI.googleLogin(credential);
+      const { token: authToken, user: userData } = data;
+
+      localStorage.setItem('token', authToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setToken(authToken);
+      setUser(userData);
+      toast.success('Google ile başarıyla giriş yapıldı!');
+      return userData;
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -79,6 +98,7 @@ export const AuthProvider = ({ children }) => {
     token,
     isLoading,
     login,
+    loginWithGoogle,
     logout,
     isAuthenticated: !!token,
   };
