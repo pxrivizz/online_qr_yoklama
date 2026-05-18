@@ -54,6 +54,11 @@ export const StudentDashboard = () => {
     ? activeSessionsData.filter(s => enrolledCourseIds.has(s.course_id) && s.is_active)
     : [];
 
+  console.log('coursesData:', coursesData);
+  console.log('activeSessionsData:', activeSessionsData);
+  console.log('enrolledCourseIds:', [...enrolledCourseIds]);
+  console.log('relevantActiveSessions:', relevantActiveSessions);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -94,6 +99,12 @@ export const StudentDashboard = () => {
           </button>
         </div>
       </header>
+
+      <div className="text-xs text-gray-400 p-2 text-center bg-white border-b border-gray-100">
+        Dersler: {JSON.stringify(enrolledCourseIds.size)} | 
+        Aktif: {JSON.stringify(activeSessionsData?.length)} |
+        İlgili: {JSON.stringify(relevantActiveSessions?.length)}
+      </div>
 
       <main className="flex-1 p-4 space-y-5 max-w-3xl mx-auto w-full">
         {/* Avatar Warning Banner */}
