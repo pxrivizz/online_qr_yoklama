@@ -13,18 +13,26 @@ export const StudentDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const { data: activeSessions = [], isError: sessionsError } = useQuery({
-    queryKey: ['activeSessions'],
-    queryFn: sessionAPI.getActiveSessions,
-    refetchInterval: 30000,
-    retry: 1,
+  const { data: coursesData = [] } = useQuery({
+    queryKey: ['studentCourses'],
+    queryFn: courseAPI.getCourses,
+    refetchInterval: 15000,
+    enabled: !!user,
   });
 
-  const { data: myAttendances = [], isError: attendanceError, isLoading } = useQuery({
+  const { data: activeSessionsData = [], refetch: refetchActiveSessions } = useQuery({
+    queryKey: ['activeSessions'],
+    queryFn: sessionAPI.getActiveSessions,
+    refetchInterval: 15000,
+    enabled: !!user,
+  });
+
+  const { data: myAttendances = [], isLoading } = useQuery({
     queryKey: ['myAttendances'],
     queryFn: attendanceAPI.getMyAttendances,
     refetchInterval: 30000,
     retry: 1,
+    enabled: !!user,
   });
 
   if (isLoading) {
@@ -38,10 +46,13 @@ export const StudentDashboard = () => {
     );
   }
 
-  const enrolledCourseIds = myAttendances.map(att => att.course_id);
-  const relevantActiveSessions = activeSessions.filter(session =>
-    enrolledCourseIds.includes(session.course_id) && session.is_active
+  const enrolledCourseIds = new Set(
+    Array.isArray(coursesData) ? coursesData.map(c => c.id) : []
   );
+
+  const relevantActiveSessions = Array.isArray(activeSessionsData)
+    ? activeSessionsData.filter(s => enrolledCourseIds.has(s.course_id) && s.is_active)
+    : [];
 
   const handleLogout = () => {
     logout();
@@ -100,6 +111,19 @@ export const StudentDashboard = () => {
             </div>
           </button>
         )}
+
+        {/* Active Session Area Header */}
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            Aktif Yoklamalar
+          </h2>
+          <button 
+            onClick={() => refetchActiveSessions()}
+            className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors shadow-sm active:scale-95"
+          >
+            Yenile
+          </button>
+        </div>
 
         {/* Active Session Banner */}
         {relevantActiveSessions.length > 0 ? (
