@@ -43,6 +43,7 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        student_number: user.student_number,
       },
     });
   } catch (error) {
@@ -106,6 +107,7 @@ const googleLogin = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          student_number: user.student_number,
           avatar_url: user.avatar_url,
           auth_provider: user.auth_provider || 'google',
         },
@@ -179,6 +181,7 @@ const registerStudent = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          student_number: user.student_number,
           avatar_url: user.avatar_url,
           auth_provider: user.auth_provider || 'google',
         },
@@ -283,7 +286,7 @@ const getMe = async (req, res) => {
     }
 
     const user = result.rows[0];
-    return res.json(user);
+    return res.json({ user });
   } catch (error) {
     console.error('Get me error:', error);
     return res.status(500).json({ error: 'Server error' });

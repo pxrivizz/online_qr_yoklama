@@ -14,6 +14,8 @@ export const ProfileScreen = () => {
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || null);
   const [uploading, setUploading] = useState(false);
 
+  console.log('Profile User Data:', user);
+
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;

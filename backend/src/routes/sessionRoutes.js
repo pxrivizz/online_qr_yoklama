@@ -17,8 +17,8 @@ router.use(authenticate);
 // Start a new session (teacher, admin)
 router.post('/start', requireRole('teacher', 'admin'), startSession);
 
-// Get all active sessions (teacher, admin) - must be before /:id
-router.get('/active', requireRole('teacher', 'admin'), getActiveSessions);
+// Get all active sessions (authenticated users) - must be before /:id
+router.get('/active', getActiveSessions);
 
 // Get all sessions for a course (teacher, admin)
 router.get('/course/:courseId', requireRole('teacher', 'admin'), getCourseSessions);
