@@ -177,8 +177,8 @@ export const Dashboard = () => {
   return (
     <div className="space-y-8">
       <div className="animate-slide-up">
-        <h1 className="page-title">Hoş Geldiniz 👋</h1>
-        <p className="page-subtitle">Bugün yapmanız gereken işleri burada görebilirsiniz</p>
+        <h1 className="page-title">Hoş Geldiniz {user?.name || 'Kullanıcı'}👋</h1>
+        <p className="page-subtitle">Derslerini aşağıda görebilirsin.</p>
       </div>
 
       {/* Stat Cards */}
