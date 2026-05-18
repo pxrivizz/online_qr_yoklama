@@ -19,15 +19,6 @@ const startSession = async (req, res) => {
       return res.status(400).json({ error: 'course_id is required' });
     }
 
-    // Check if there's already an active session for this course
-    const activeCheckQuery = 'SELECT id FROM attendance_sessions WHERE course_id = $1 AND is_active = true';
-    const activeCheckValues = [course_id];
-    const activeCheck = await runQuery('startSession.activeCheck', activeCheckQuery, activeCheckValues);
-
-    if (activeCheck.rows.length > 0) {
-      return res.status(409).json({ error: 'An active session already exists for this course' });
-    }
-
     // Verify the course exists and teacher owns it (if not admin)
     const courseCheckQuery = 'SELECT teacher_id, total_sessions_planned FROM courses WHERE id = $1';
     const courseCheckValues = [course_id];
@@ -72,7 +63,7 @@ const startSession = async (req, res) => {
     const qrToken = generateQRToken(sessionId, course_id, sessNum);
     const expiresAt = new Date(Date.now() + 30 * 1000);
 
-    console.log('attendance_sessions insert payload (startSession):', {
+    console.log('[UPSERT DEBUG] attendance_sessions startSession payload:', {
       id: sessionId,
       course_id,
       teacher_id: req.user.id,
@@ -83,11 +74,34 @@ const startSession = async (req, res) => {
       is_active: true,
     });
 
-    const insertSessionQuery = `INSERT INTO attendance_sessions (id, course_id, teacher_id, session_number, qr_token, token_expires_at, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
-       RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active`;
-    const insertSessionValues = [sessionId, course_id, req.user.id, sessNum, qrToken, expiresAt];
-    const result = await runQuery('startSession.insertSession', insertSessionQuery, insertSessionValues);
+    // UPSERT: If (course_id, session_number) exists, UPDATE it. Otherwise, INSERT it.
+    const upsertQuery = `
+      INSERT INTO attendance_sessions (id, course_id, teacher_id, session_number, qr_token, token_expires_at, is_active, started_at)
+      VALUES ($1, $2, $3, $4, $5, $6, true, now())
+      ON CONFLICT (course_id, session_number) DO UPDATE SET
+        qr_token = $5,
+        token_expires_at = $6,
+        is_active = true,
+        started_at = now(),
+        ended_at = null,
+        teacher_id = $3
+      RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active
+    `;
+    const upsertValues = [sessionId, course_id, req.user.id, sessNum, qrToken, expiresAt];
+    
+    console.log('[UPSERT DEBUG] Executing UPSERT with:', {
+      sessionId,
+      course_id,
+      session_number: sessNum,
+      teacher_id: req.user.id,
+    });
+
+    const result = await runQuery('startSession.upsertSession', upsertQuery, upsertValues);
+
+    console.log('[UPSERT DEBUG] UPSERT result:', {
+      rowCount: result.rows.length,
+      returnedSession: result.rows[0],
+    });
 
     return res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -294,22 +308,77 @@ const getSessionById = async (req, res) => {
 
 const getActiveSessions = async (req, res) => {
   try {
-    // --- DEBUGGING LOGIC ---
+    // --- AGGRESSIVE DB STATE LOGGING FOR STUDENTS ---
     if (req.user.role === 'student') {
-      const debugQuery = `
-        SELECT s.id, s.is_active, s.course_id 
-        FROM attendance_sessions s
-        JOIN course_students cs ON s.course_id = cs.course_id
-        WHERE cs.student_id = $1
-      `;
-      const debugResult = await runQuery('getActiveSessions.debugAllSessions', debugQuery, [req.user.id]);
-      console.log('\\n--- DEBUG: All Sessions for Student Courses ---');
-      debugResult.rows.forEach(row => {
-        console.log(`Session ID: ${row.id}, Course ID: ${row.course_id}, is_active: ${row.is_active} (Type: ${typeof row.is_active})`);
-      });
-      console.log('-----------------------------------------------\\n');
+      try {
+        // LOG 1: All sessions with is_active = true (regardless of enrollment)
+        const debugLog1Query = `SELECT * FROM attendance_sessions WHERE is_active = true`;
+        const debugLog1Result = await runQuery('getActiveSessions.DEBUG_LOG_1_AllActiveSessions', debugLog1Query, []);
+        console.log('\n╔════════════════════════════════════════════════════════════════╗');
+        console.log('║ [DEBUG LOG 1] ALL SESSIONS WITH is_active = true IN DATABASE   ║');
+        console.log('╚════════════════════════════════════════════════════════════════╝');
+        if (debugLog1Result.rows.length === 0) {
+          console.log('❌ NO ACTIVE SESSIONS FOUND IN DATABASE!');
+          console.log('👉 This means the teacher NEVER clicked "Start Session" or the UPDATE failed silently.');
+        } else {
+          console.log(`✓ Found ${debugLog1Result.rows.length} active session(s):`);
+          debugLog1Result.rows.forEach((row, idx) => {
+            console.log(`  [${idx + 1}] Session ID: ${row.id}`);
+            console.log(`      Course ID: ${row.course_id}`);
+            console.log(`      Session#: ${row.session_number}`);
+            console.log(`      QR Token: ${row.qr_token?.substring(0, 20)}...`);
+            console.log(`      is_active: ${row.is_active} (Type: ${typeof row.is_active})`);
+            console.log(`      Created: ${row.started_at}`);
+          });
+        }
+        console.log('');
+
+        // LOG 2: All courses this student is enrolled in
+        const debugLog2Query = `SELECT course_id FROM course_students WHERE student_id = $1`;
+        const debugLog2Result = await runQuery('getActiveSessions.DEBUG_LOG_2_StudentEnrollments', debugLog2Query, [req.user.id]);
+        console.log('╔════════════════════════════════════════════════════════════════╗');
+        console.log('║ [DEBUG LOG 2] COURSES THIS STUDENT IS ENROLLED IN              ║');
+        console.log('╚════════════════════════════════════════════════════════════════╝');
+        if (debugLog2Result.rows.length === 0) {
+          console.log('❌ STUDENT NOT ENROLLED IN ANY COURSES!');
+          console.log('👉 This explains why getActiveSessions returns [].');
+          console.log('👉 The student needs to be added to course_students table.');
+        } else {
+          console.log(`✓ Student is enrolled in ${debugLog2Result.rows.length} course(s):`);
+          debugLog2Result.rows.forEach((row, idx) => {
+            console.log(`  [${idx + 1}] Course ID: ${row.course_id}`);
+          });
+        }
+        console.log('');
+
+        // LOG 3: Cross-check - active sessions for THIS STUDENT'S courses
+        const debugLog3Query = `
+          SELECT s.id, s.course_id, s.session_number, s.is_active, s.qr_token
+          FROM attendance_sessions s
+          JOIN course_students cs ON s.course_id = cs.course_id
+          WHERE cs.student_id = $1
+        `;
+        const debugLog3Result = await runQuery('getActiveSessions.DEBUG_LOG_3_SessionsForStudentCourses', debugLog3Query, [req.user.id]);
+        console.log('╔════════════════════════════════════════════════════════════════╗');
+        console.log('║ [DEBUG LOG 3] SESSIONS IN STUDENT\'S ENROLLED COURSES (ANY STATE)║');
+        console.log('╚════════════════════════════════════════════════════════════════╝');
+        if (debugLog3Result.rows.length === 0) {
+          console.log('❌ NO SESSIONS FOUND FOR THIS STUDENT\'S COURSES!');
+          console.log('👉 The teacher has not created any sessions yet.');
+        } else {
+          console.log(`✓ Found ${debugLog3Result.rows.length} session(s) in student's courses:`);
+          debugLog3Result.rows.forEach((row, idx) => {
+            console.log(`  [${idx + 1}] Session ID: ${row.id}`);
+            console.log(`      Course ID: ${row.course_id}`);
+            console.log(`      is_active: ${row.is_active}`);
+          });
+        }
+        console.log('════════════════════════════════════════════════════════════════\n');
+      } catch (debugError) {
+        console.error('[DEBUG ERROR] Failed to run diagnostic logs:', debugError.message);
+      }
     }
-    // -----------------------
+    // -------------------------------------------------------
 
     let query = `SELECT s.id, s.course_id, s.teacher_id, s.session_number, s.qr_token, s.token_expires_at, s.started_at, s.is_active,
                         c.name as course_name, c.code as course_code,
