@@ -394,6 +394,21 @@ async function getStudentAttendanceSummary(req, res) {
         u.avatar_url,
         cs.is_mandatory,
         cs.enrollment_type,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'session_number', CASE
+                WHEN s.qr_token LIKE 'manual_%' THEN NULLIF(split_part(s.qr_token, '_', 3), '')::integer
+                ELSE s.session_number
+              END,
+              'status', CASE
+                WHEN s.qr_token LIKE 'manual_%' THEN 'manual'
+                ELSE 'qr'
+              END
+            )
+          ) FILTER (WHERE a.id IS NOT NULL AND a.is_valid = true),
+          '[]'::jsonb
+        ) as attendances,
         ARRAY(
           SELECT CAST(split_part(s2.qr_token, '_', 3) AS INTEGER)
           FROM attendances a2
@@ -414,16 +429,21 @@ async function getStudentAttendanceSummary(req, res) {
       [course_id]
     );
 
-    const students = result.rows.map(row => ({
-      id: row.student_id || row.id,
-      name: row.name,
-      student_number: row.student_number,
-      avatar_url: row.avatar_url,
-      is_mandatory: row.is_mandatory,
-      enrollment_type: row.enrollment_type || (row.is_mandatory ? 'zorunlu' : 'alttan'),
-      manual_indexes: row.manual_indexes || [],
-      total_attended: (row.manual_indexes ? row.manual_indexes.length : 0) + Number(row.qr_attended_count || 0)
-    }));
+    const students = result.rows.map(row => {
+      const attendances = Array.isArray(row.attendances) ? row.attendances : [];
+      const manualIndexes = Array.isArray(row.manual_indexes) ? row.manual_indexes : [];
+      return {
+        id: row.student_id || row.id,
+        name: row.name,
+        student_number: row.student_number,
+        avatar_url: row.avatar_url,
+        is_mandatory: row.is_mandatory,
+        enrollment_type: row.enrollment_type || (row.is_mandatory ? 'zorunlu' : 'alttan'),
+        attendances,
+        manual_indexes: manualIndexes,
+        total_attended: attendances.length
+      };
+    });
 
     res.status(200).json({
       total_sessions_planned,

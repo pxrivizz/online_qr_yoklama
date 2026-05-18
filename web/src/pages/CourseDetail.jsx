@@ -378,6 +378,8 @@ export const CourseDetail = () => {
     },
   ];
 
+  console.log('Grid Student Data:', gridData?.students || []);
+
   return (
     <div className="space-y-6">
       {/* Course Header */}
@@ -711,36 +713,7 @@ export const CourseDetail = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white text-sm text-slate-800">
                   {gridData?.students?.map((student) => {
-                    const attendances = Array.isArray(student.attendances) ? student.attendances : [];
-                    const manualIndexes = Array.isArray(student.manual_indexes) ? student.manual_indexes : [];
-                    const attendanceBySession = new Map();
-
-                    attendances.forEach((record) => {
-                      const sessionNumber = Number(record?.session_number);
-                      if (Number.isFinite(sessionNumber)) {
-                        attendanceBySession.set(sessionNumber, record);
-                      }
-                    });
-
-                    manualIndexes.forEach((index) => {
-                      const sessionNumber = Number(index);
-                      if (Number.isFinite(sessionNumber) && !attendanceBySession.has(sessionNumber)) {
-                        attendanceBySession.set(sessionNumber, {
-                          session_number: sessionNumber,
-                          status: 'manual',
-                          is_valid: true,
-                        });
-                      }
-                    });
-
-                    const isValidAttendance = (record) => {
-                      if (!record) return false;
-                      if (record.is_valid === false || record.valid === false) return false;
-                      if (typeof record.status === 'string' && record.status.toLowerCase() === 'invalid') return false;
-                      return true;
-                    };
-
-                    const attendedCount = Array.from(attendanceBySession.values()).filter(isValidAttendance).length;
+                    const attendedCount = Array.isArray(student.attendances) ? student.attendances.length : 0;
                     const percentage = totalPlanned > 0 ? Math.round((attendedCount / totalPlanned) * 100) : 0;
 
                     let percentColor = 'text-rose-600 font-bold';
@@ -785,19 +758,20 @@ export const CourseDetail = () => {
                         <td className="px-5 py-4 whitespace-nowrap text-slate-500 font-mono text-xs">{student.student_number}</td>
 
                         {sessionColumns.map((index) => {
-                          const record = attendanceBySession.get(index);
-                          const attended = isValidAttendance(record);
+                          const hasAttended = student.attendances?.some(
+                            (att) => Number(att.session_number) === index
+                          );
                           return (
                             <td key={index} className="px-2 py-3 text-center">
                               <button
                                 type="button"
                                 onClick={() => handleToggleAttendance(student.id, index)}
-                                className={`w-7 h-7 rounded-full border-2 transition-all duration-200 hover:scale-110 ${attended
-                                    ? 'bg-emerald-50 border-emerald-300'
-                                    : 'bg-white border-slate-300 hover:border-emerald-400'
-                                  }`}
+                                className={`w-7 h-7 rounded-full border-2 transition-all duration-200 hover:scale-110 ${hasAttended
+                                  ? 'bg-emerald-50 border-emerald-300'
+                                  : 'bg-white border-slate-300 hover:border-emerald-400'
+                                }`}
                               >
-                                {attended && <CheckCircle2 className="w-4 h-4 text-emerald-600 mx-auto" />}
+                                {hasAttended && <CheckCircle2 className="w-4 h-4 text-emerald-600 mx-auto" />}
                               </button>
                             </td>
                           );
