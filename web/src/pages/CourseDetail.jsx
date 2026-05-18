@@ -150,14 +150,14 @@ export const CourseDetail = () => {
     const worksheet = workbook.addWorksheet('Yoklama');
 
     const students = gridData?.students || [];
-    const courseId = id;
+    const totalSessions = totalPlanned;
 
     // Header row
     const headers = ['Öğrenci Adı', 'Öğrenci No', 'Durum'];
-    for (let i = 1; i <= totalPlanned; i++) {
-      headers.push(`Ders ${i}`);
+    for (let i = 1; i <= totalSessions; i++) {
+      headers.push(`Oturum ${i}`);
     }
-    headers.push('Toplam', 'Yüzde');
+    headers.push('Toplam Katılım', 'Katılım Yüzdesi');
 
     const headerRow = worksheet.addRow(headers);
     headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -170,8 +170,8 @@ export const CourseDetail = () => {
     // Data rows
     students.forEach((student) => {
       const totalAttended = Array.isArray(student.attendances) ? student.attendances.length : 0;
-      const percentage = totalPlanned > 0
-        ? Math.round((totalAttended / totalPlanned) * 100)
+      const percentage = totalSessions > 0
+        ? Math.round((totalAttended / totalSessions) * 100)
         : 0;
 
       const enrollmentType = student.enrollment_type || (student.is_mandatory ? 'zorunlu' : 'alttan');
@@ -179,19 +179,19 @@ export const CourseDetail = () => {
                            enrollmentType === 'secmeli' ? 'Seçmeli' : 'Zorunlu';
 
       const row = [
-        student.name,
-        student.student_number,
-        statusLabel
+        student.student_name || student.name || '-',
+        student.student_number || '-',
+        statusLabel,
       ];
 
-      for (let i = 1; i <= totalPlanned; i++) {
+      for (let i = 1; i <= totalSessions; i++) {
         const hasAttended = student.attendances?.some(
           (att) => Number(att.session_number) === i
         );
-        row.push(hasAttended ? 'Katıldı' : 'Katılmadı');
+        row.push(hasAttended ? '✅' : '');
       }
 
-      row.push(`${totalAttended} / ${totalPlanned}`, `%${percentage}`);
+      row.push(`${totalAttended} / ${totalSessions}`, `%${percentage}`);
       const dataRow = worksheet.addRow(row);
 
       // Yellow background for alttan students
@@ -228,8 +228,8 @@ export const CourseDetail = () => {
     const a = document.createElement('a');
     a.href = url;
     const today = new Date().toLocaleDateString('tr-TR').replace(/\./g, '-');
-    const courseName = course?.name || course?.code || 'Ders';
-    a.download = `${courseName}_Yoklama_${today}.xlsx`;
+    const courseCode = course?.code || 'Ders';
+    a.download = `${courseCode}_Yoklama_Raporu.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
