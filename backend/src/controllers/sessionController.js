@@ -138,39 +138,43 @@ const generateSessionQR = async (req, res) => {
       return res.status(400).json({ message: `sessionNumber (${sessNum}) exceeds total planned sessions (${totalPlanned})` });
     }
 
-    // Check if a completed (non-manual) session already exists for this session_number
-      const existingSessionQuery = `SELECT id FROM attendance_sessions 
-         WHERE course_id = $1 AND session_number = $2 AND qr_token NOT LIKE 'manual_%'`;
-      const existingSessionValues = [courseId, sessNum];
-      const existingSession = await runQuery('generateSessionQR.existingSession', existingSessionQuery, existingSessionValues);
+    // Check if a session already exists for this session_number
+    const existingSessionQuery = `SELECT id FROM attendance_sessions WHERE course_id = $1 AND session_number = $2`;
+    const existingSessionValues = [courseId, sessNum];
+    const existingSession = await runQuery('generateSessionQR.existingSession', existingSessionQuery, existingSessionValues);
 
+    let sessionId;
     if (existingSession.rows.length > 0) {
-      return res.status(409).json({ message: `Bu ders için ${sessNum}. yoklama oturumu zaten oluşturulmuş` });
+      sessionId = existingSession.rows[0].id;
+    } else {
+      sessionId = uuidv4();
     }
 
     // Generate QR token with courseId and sessionNumber embedded
-    const sessionId = uuidv4();
     const qrToken = generateQRToken(sessionId, courseId, sessNum);
     const expiresAt = new Date(Date.now() + 30 * 1000);
 
-    console.log('attendance_sessions insert payload (generateSessionQR):', {
-      id: sessionId,
-      course_id: courseId,
-      teacher_id: req.user.id,
-      session_number: sessNum,
-      qr_token: qrToken,
-      qr_token_length: qrToken ? qrToken.length : 0,
-      token_expires_at: expiresAt,
-      is_active: true,
-    });
+    let result;
+    if (existingSession.rows.length > 0) {
+      // UPDATE EXISTING ROW
+      const updateSessionQuery = `
+        UPDATE attendance_sessions 
+        SET is_active = true, qr_token = $1, token_expires_at = $2, started_at = now(), ended_at = null
+        WHERE id = $3
+        RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active
+      `;
+      result = await runQuery('generateSessionQR.updateSession', updateSessionQuery, [qrToken, expiresAt, sessionId]);
+    } else {
+      // INSERT NEW ROW
+      const insertSessionQuery = `
+        INSERT INTO attendance_sessions (id, course_id, teacher_id, session_number, qr_token, token_expires_at, is_active, started_at)
+        VALUES ($1, $2, $3, $4, $5, $6, true, now())
+        RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active
+      `;
+      result = await runQuery('generateSessionQR.insertSession', insertSessionQuery, [sessionId, courseId, req.user.id, sessNum, qrToken, expiresAt]);
+    }
 
-    const insertSessionQuery = `INSERT INTO attendance_sessions (id, course_id, teacher_id, session_number, qr_token, token_expires_at, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
-       RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active`;
-    const insertSessionValues = [sessionId, courseId, req.user.id, sessNum, qrToken, expiresAt];
-    const result = await runQuery('generateSessionQR.insertSession', insertSessionQuery, insertSessionValues);
-
-    return res.status(201).json(result.rows[0]);
+    return res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error('Generate session QR error:', error);
     return res.status(500).json({ message: error.message || 'Database connection failed or server error' });
