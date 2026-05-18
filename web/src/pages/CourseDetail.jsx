@@ -711,8 +711,37 @@ export const CourseDetail = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white text-sm text-slate-800">
                   {gridData?.students?.map((student) => {
-                    const totalAttended = student.manual_indexes?.length || 0;
-                    const percentage = totalPlanned > 0 ? Math.round((totalAttended / totalPlanned) * 100) : 0;
+                    const attendances = Array.isArray(student.attendances) ? student.attendances : [];
+                    const manualIndexes = Array.isArray(student.manual_indexes) ? student.manual_indexes : [];
+                    const attendanceBySession = new Map();
+
+                    attendances.forEach((record) => {
+                      const sessionNumber = Number(record?.session_number);
+                      if (Number.isFinite(sessionNumber)) {
+                        attendanceBySession.set(sessionNumber, record);
+                      }
+                    });
+
+                    manualIndexes.forEach((index) => {
+                      const sessionNumber = Number(index);
+                      if (Number.isFinite(sessionNumber) && !attendanceBySession.has(sessionNumber)) {
+                        attendanceBySession.set(sessionNumber, {
+                          session_number: sessionNumber,
+                          status: 'manual',
+                          is_valid: true,
+                        });
+                      }
+                    });
+
+                    const isValidAttendance = (record) => {
+                      if (!record) return false;
+                      if (record.is_valid === false || record.valid === false) return false;
+                      if (typeof record.status === 'string' && record.status.toLowerCase() === 'invalid') return false;
+                      return true;
+                    };
+
+                    const attendedCount = Array.from(attendanceBySession.values()).filter(isValidAttendance).length;
+                    const percentage = totalPlanned > 0 ? Math.round((attendedCount / totalPlanned) * 100) : 0;
 
                     let percentColor = 'text-rose-600 font-bold';
                     if (percentage >= 70) {
@@ -756,25 +785,26 @@ export const CourseDetail = () => {
                         <td className="px-5 py-4 whitespace-nowrap text-slate-500 font-mono text-xs">{student.student_number}</td>
 
                         {sessionColumns.map((index) => {
-                          const attended = student.manual_indexes?.includes(index);
+                          const record = attendanceBySession.get(index);
+                          const attended = isValidAttendance(record);
                           return (
                             <td key={index} className="px-2 py-3 text-center">
                               <button
                                 type="button"
                                 onClick={() => handleToggleAttendance(student.id, index)}
                                 className={`w-7 h-7 rounded-full border-2 transition-all duration-200 hover:scale-110 ${attended
-                                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                                    ? 'bg-emerald-50 border-emerald-300'
                                     : 'bg-white border-slate-300 hover:border-emerald-400'
                                   }`}
                               >
-                                {attended && <span className="text-xs">✓</span>}
+                                {attended && <CheckCircle2 className="w-4 h-4 text-emerald-600 mx-auto" />}
                               </button>
                             </td>
                           );
                         })}
 
                         <td className="px-5 py-4 text-center whitespace-nowrap font-medium border-l border-slate-200">
-                          <div className="text-slate-800 font-semibold">{totalAttended} / {totalPlanned}</div>
+                          <div className="text-slate-800 font-semibold">{attendedCount} / {totalPlanned}</div>
                           <div className={percentColor}>%{percentage}</div>
                         </td>
                       </tr>

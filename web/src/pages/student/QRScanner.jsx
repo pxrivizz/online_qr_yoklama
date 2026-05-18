@@ -19,11 +19,44 @@ export const QRScanner = () => {
     let animationFrameId;
     let streamRef;
 
+    const selectPreferredCamera = async () => {
+      if (!navigator.mediaDevices?.enumerateDevices) return null;
+
+      let devices = await navigator.mediaDevices.enumerateDevices();
+      let videoInputs = devices.filter((d) => d.kind === 'videoinput');
+
+      const labelsMissing = videoInputs.every((d) => !d.label);
+      if (labelsMissing) {
+        try {
+          const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          tempStream.getTracks().forEach((track) => track.stop());
+        } catch (e) {
+          // Ignore; fallback will use the first available camera.
+        }
+        devices = await navigator.mediaDevices.enumerateDevices();
+        videoInputs = devices.filter((d) => d.kind === 'videoinput');
+      }
+
+      const isExcludedLabel = (label) => {
+        const normalized = String(label || '').toLowerCase();
+        return normalized.includes('wide') || normalized.includes('ultrawide') || normalized.includes('ultra wide') || normalized.includes('macro');
+      };
+
+      const filtered = videoInputs.filter((d) => !isExcludedLabel(d.label));
+      const preferred = filtered.find((d) => /back|rear|environment/i.test(d.label));
+      const selected = preferred || filtered[0] || videoInputs[0];
+
+      return selected?.deviceId || null;
+    };
+
     const startCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
+        const deviceId = await selectPreferredCamera();
+        const constraints = deviceId
+          ? { video: { deviceId: { exact: deviceId } } }
+          : { video: { facingMode: 'environment' } };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         streamRef = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
