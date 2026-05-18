@@ -321,101 +321,27 @@ const getSessionById = async (req, res) => {
 
 const getActiveSessions = async (req, res) => {
   try {
-    // --- AGGRESSIVE DB STATE LOGGING FOR STUDENTS ---
-    if (req.user.role === 'student') {
-      try {
-        // LOG 1: All sessions with is_active = true (regardless of enrollment)
-        const debugLog1Query = `SELECT * FROM attendance_sessions WHERE is_active = true`;
-        const debugLog1Result = await runQuery('getActiveSessions.DEBUG_LOG_1_AllActiveSessions', debugLog1Query, []);
-        console.log('\n╔════════════════════════════════════════════════════════════════╗');
-        console.log('║ [DEBUG LOG 1] ALL SESSIONS WITH is_active = true IN DATABASE   ║');
-        console.log('╚════════════════════════════════════════════════════════════════╝');
-        if (debugLog1Result.rows.length === 0) {
-          console.log('❌ NO ACTIVE SESSIONS FOUND IN DATABASE!');
-          console.log('👉 This means the teacher NEVER clicked "Start Session" or the UPDATE failed silently.');
-        } else {
-          console.log(`✓ Found ${debugLog1Result.rows.length} active session(s):`);
-          debugLog1Result.rows.forEach((row, idx) => {
-            console.log(`  [${idx + 1}] Session ID: ${row.id}`);
-            console.log(`      Course ID: ${row.course_id}`);
-            console.log(`      Session#: ${row.session_number}`);
-            console.log(`      QR Token: ${row.qr_token?.substring(0, 20)}...`);
-            console.log(`      is_active: ${row.is_active} (Type: ${typeof row.is_active})`);
-            console.log(`      Created: ${row.started_at}`);
-          });
-        }
-        console.log('');
+    const userId = req.user.id;
 
-        // LOG 2: All courses this student is enrolled in
-        const debugLog2Query = `SELECT course_id FROM course_students WHERE student_id = $1`;
-        const debugLog2Result = await runQuery('getActiveSessions.DEBUG_LOG_2_StudentEnrollments', debugLog2Query, [req.user.id]);
-        console.log('╔════════════════════════════════════════════════════════════════╗');
-        console.log('║ [DEBUG LOG 2] COURSES THIS STUDENT IS ENROLLED IN              ║');
-        console.log('╚════════════════════════════════════════════════════════════════╝');
-        if (debugLog2Result.rows.length === 0) {
-          console.log('❌ STUDENT NOT ENROLLED IN ANY COURSES!');
-          console.log('👉 This explains why getActiveSessions returns [].');
-          console.log('👉 The student needs to be added to course_students table.');
-        } else {
-          console.log(`✓ Student is enrolled in ${debugLog2Result.rows.length} course(s):`);
-          debugLog2Result.rows.forEach((row, idx) => {
-            console.log(`  [${idx + 1}] Course ID: ${row.course_id}`);
-          });
-        }
-        console.log('');
-
-        // LOG 3: Cross-check - active sessions for THIS STUDENT'S courses
-        const debugLog3Query = `
-          SELECT s.id, s.course_id, s.session_number, s.is_active, s.qr_token
-          FROM attendance_sessions s
-          JOIN course_students cs ON s.course_id = cs.course_id
-          WHERE cs.student_id = $1
-        `;
-        const debugLog3Result = await runQuery('getActiveSessions.DEBUG_LOG_3_SessionsForStudentCourses', debugLog3Query, [req.user.id]);
-        console.log('╔════════════════════════════════════════════════════════════════╗');
-        console.log('║ [DEBUG LOG 3] SESSIONS IN STUDENT\'S ENROLLED COURSES (ANY STATE)║');
-        console.log('╚════════════════════════════════════════════════════════════════╝');
-        if (debugLog3Result.rows.length === 0) {
-          console.log('❌ NO SESSIONS FOUND FOR THIS STUDENT\'S COURSES!');
-          console.log('👉 The teacher has not created any sessions yet.');
-        } else {
-          console.log(`✓ Found ${debugLog3Result.rows.length} session(s) in student's courses:`);
-          debugLog3Result.rows.forEach((row, idx) => {
-            console.log(`  [${idx + 1}] Session ID: ${row.id}`);
-            console.log(`      Course ID: ${row.course_id}`);
-            console.log(`      is_active: ${row.is_active}`);
-          });
-        }
-        console.log('════════════════════════════════════════════════════════════════\n');
-      } catch (debugError) {
-        console.error('[DEBUG ERROR] Failed to run diagnostic logs:', debugError.message);
-      }
-    }
-    // -------------------------------------------------------
-
-    let query = `SELECT s.id, s.course_id, s.teacher_id, s.session_number, s.qr_token, s.token_expires_at, s.started_at, s.is_active,
+    let query = `SELECT s.id, s.course_id, s.session_number, s.qr_token, s.token_expires_at,
                         c.name as course_name, c.code as course_code,
-                        u.name as teacher_name,
-                        (SELECT COUNT(*) FROM attendances WHERE session_id = s.id) as attendance_count
+                        u.name as teacher_name
                  FROM attendance_sessions s
                  JOIN courses c ON s.course_id = c.id
                  JOIN users u ON s.teacher_id = u.id
                  WHERE s.is_active = true`;
     const params = [];
 
-    // If teacher, only show sessions for their courses
     if (req.user.role === 'teacher') {
       query += ' AND s.teacher_id = $1';
-      params.push(req.user.id);
+      params.push(userId);
     } else if (req.user.role === 'student') {
-      // For students, ONLY return sessions for courses they are enrolled in
-      query += ` AND EXISTS (
-        SELECT 1
-        FROM course_students cs
-        WHERE cs.course_id = s.course_id
-          AND cs.student_id = $1
+      query += ` AND s.course_id IN (
+        SELECT course_id
+        FROM course_students
+        WHERE student_id = $1
       )`;
-      params.push(req.user.id);
+      params.push(userId);
     }
 
     query += ' ORDER BY s.started_at DESC';
