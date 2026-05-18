@@ -173,7 +173,11 @@ const generateSessionQR = async (req, res) => {
       // UPDATE EXISTING ROW
       const updateSessionQuery = `
         UPDATE attendance_sessions 
-        SET is_active = true, qr_token = $1, token_expires_at = $2, started_at = now(), ended_at = null
+        SET is_active = true,
+            qr_token = $1,
+            token_expires_at = $2,
+            started_at = COALESCE(started_at, now()),
+            ended_at = null
         WHERE id = $3
         RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active
       `;
@@ -231,7 +235,16 @@ const refreshQRToken = async (req, res) => {
       token_expires_at: expiresAt,
     });
 
-    const updateTokenQuery = 'UPDATE attendance_sessions SET qr_token = $1, token_expires_at = $2 WHERE id = $3 RETURNING qr_token, token_expires_at';
+    const updateTokenQuery = `
+      UPDATE attendance_sessions
+      SET qr_token = $1,
+          token_expires_at = $2,
+          is_active = true,
+          started_at = COALESCE(started_at, now()),
+          ended_at = null
+      WHERE id = $3
+      RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, ended_at, is_active
+    `;
     const updateTokenValues = [qrToken, expiresAt, id];
     const result = await runQuery('refreshQRToken.updateToken', updateTokenQuery, updateTokenValues);
 
@@ -395,9 +408,12 @@ const getActiveSessions = async (req, res) => {
       query += ' AND s.teacher_id = $1';
       params.push(req.user.id);
     } else if (req.user.role === 'student') {
-      // For students, ONLY query sessions of courses they are actively enrolled in
-      query += ` AND s.course_id IN (
-        SELECT course_id FROM course_students WHERE student_id = $1
+      // For students, ONLY return sessions for courses they are enrolled in
+      query += ` AND EXISTS (
+        SELECT 1
+        FROM course_students cs
+        WHERE cs.course_id = s.course_id
+          AND cs.student_id = $1
       )`;
       params.push(req.user.id);
     }
