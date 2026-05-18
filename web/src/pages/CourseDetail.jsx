@@ -157,7 +157,7 @@ export const CourseDetail = () => {
     for (let i = 1; i <= totalPlanned; i++) {
       headers.push(`Ders ${i}`);
     }
-    headers.push('Toplam Katılım', 'Katılım Yüzdesi');
+    headers.push('Toplam', 'Yüzde');
 
     const headerRow = worksheet.addRow(headers);
     headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -169,8 +169,7 @@ export const CourseDetail = () => {
 
     // Data rows
     students.forEach((student) => {
-      const attended = student.manual_indexes || [];
-      const totalAttended = attended.length;
+      const totalAttended = Array.isArray(student.attendances) ? student.attendances.length : 0;
       const percentage = totalPlanned > 0
         ? Math.round((totalAttended / totalPlanned) * 100)
         : 0;
@@ -186,7 +185,10 @@ export const CourseDetail = () => {
       ];
 
       for (let i = 1; i <= totalPlanned; i++) {
-        row.push(attended.includes(i) ? '✓' : '');
+        const hasAttended = student.attendances?.some(
+          (att) => Number(att.session_number) === i
+        );
+        row.push(hasAttended ? 'Katıldı' : 'Katılmadı');
       }
 
       row.push(`${totalAttended} / ${totalPlanned}`, `%${percentage}`);
@@ -715,6 +717,9 @@ export const CourseDetail = () => {
                   {gridData?.students?.map((student) => {
                     const attendedCount = Array.isArray(student.attendances) ? student.attendances.length : 0;
                     const percentage = totalPlanned > 0 ? Math.round((attendedCount / totalPlanned) * 100) : 0;
+                    const studentKey = student.id || student.student_number;
+                    const canToggle = Boolean(student.id);
+                    const avatarInitial = (student.name || student.student_number || '?').charAt(0);
 
                     let percentColor = 'text-rose-600 font-bold';
                     if (percentage >= 70) {
@@ -724,7 +729,7 @@ export const CourseDetail = () => {
                     }
 
                     return (
-                      <tr key={student.id} className={
+                      <tr key={studentKey} className={
                         student.enrollment_type === 'alttan' ? 'bg-amber-50/50 hover:bg-amber-50' :
                         student.enrollment_type === 'secmeli' ? 'bg-sky-50/50 hover:bg-sky-50' :
                         'bg-white hover:bg-slate-50/50'
@@ -740,7 +745,7 @@ export const CourseDetail = () => {
                             ) : (
                               <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
                                 <span className="text-xs text-slate-500 font-bold">
-                                  {student.name?.charAt(0)}
+                                  {avatarInitial}
                                 </span>
                               </div>
                             )}
@@ -765,8 +770,13 @@ export const CourseDetail = () => {
                             <td key={index} className="px-2 py-3 text-center">
                               <button
                                 type="button"
-                                onClick={() => handleToggleAttendance(student.id, index)}
-                                className={`w-7 h-7 rounded-full border-2 transition-all duration-200 hover:scale-110 ${hasAttended
+                                disabled={!canToggle}
+                                onClick={() => {
+                                  if (canToggle) {
+                                    handleToggleAttendance(student.id, index);
+                                  }
+                                }}
+                                className={`w-7 h-7 rounded-full border-2 transition-all duration-200 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${hasAttended
                                   ? 'bg-emerald-50 border-emerald-300'
                                   : 'bg-white border-slate-300 hover:border-emerald-400'
                                 }`}

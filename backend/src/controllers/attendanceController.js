@@ -387,13 +387,45 @@ async function getStudentAttendanceSummary(req, res) {
 
     // Get student attendance summary
     const result = await pool.query(
-      `SELECT 
+      `WITH enrollments AS (
+        SELECT
+          pe.course_id,
+          pe.student_number,
+          pe.student_name,
+          pe.enrollment_type,
+          pe.is_mandatory,
+          0 as has_user
+        FROM pending_enrollments pe
+        WHERE pe.course_id = $1
+        UNION ALL
+        SELECT
+          cs.course_id,
+          u.student_number,
+          u.name as student_name,
+          cs.enrollment_type,
+          cs.is_mandatory,
+          1 as has_user
+        FROM course_students cs
+        JOIN users u ON u.id = cs.student_id
+        WHERE cs.course_id = $1
+      ),
+      dedup_enrollments AS (
+        SELECT DISTINCT ON (student_number)
+          course_id,
+          student_number,
+          student_name,
+          enrollment_type,
+          is_mandatory
+        FROM enrollments
+        ORDER BY student_number, has_user DESC
+      )
+      SELECT 
         u.id as student_id,
-        u.name,
-        u.student_number,
+        COALESCE(u.name, e.student_name) as name,
+        COALESCE(u.student_number, e.student_number) as student_number,
         u.avatar_url,
-        cs.is_mandatory,
-        cs.enrollment_type,
+        e.is_mandatory,
+        e.enrollment_type,
         COALESCE(
           jsonb_agg(
             DISTINCT jsonb_build_object(
@@ -419,13 +451,13 @@ async function getStudentAttendanceSummary(req, res) {
           AND a2.is_valid = true
         ) as manual_indexes,
         COUNT(CASE WHEN s.qr_token NOT LIKE 'manual_%' AND a.is_valid = true THEN 1 END)::integer as qr_attended_count
-      FROM users u
-      JOIN course_students cs ON cs.student_id = u.id
-      LEFT JOIN attendance_sessions s ON s.course_id = cs.course_id
+      FROM dedup_enrollments e
+      LEFT JOIN users u ON u.student_number = e.student_number
+      LEFT JOIN attendance_sessions s ON s.course_id = e.course_id
       LEFT JOIN attendances a ON a.session_id = s.id AND a.student_id = u.id
-      WHERE cs.course_id = $1
-      GROUP BY u.id, u.name, u.student_number, u.avatar_url, cs.is_mandatory, cs.enrollment_type
-      ORDER BY u.name`,
+      WHERE e.course_id = $1
+      GROUP BY u.id, u.name, u.student_number, u.avatar_url, e.student_number, e.student_name, e.is_mandatory, e.enrollment_type
+      ORDER BY COALESCE(u.name, e.student_name)`,
       [course_id]
     );
 
@@ -433,7 +465,7 @@ async function getStudentAttendanceSummary(req, res) {
       const attendances = Array.isArray(row.attendances) ? row.attendances : [];
       const manualIndexes = Array.isArray(row.manual_indexes) ? row.manual_indexes : [];
       return {
-        id: row.student_id || row.id,
+        id: row.student_id || null,
         name: row.name,
         student_number: row.student_number,
         avatar_url: row.avatar_url,
