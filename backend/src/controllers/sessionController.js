@@ -290,6 +290,23 @@ const getSessionById = async (req, res) => {
 
 const getActiveSessions = async (req, res) => {
   try {
+    // --- DEBUGGING LOGIC ---
+    if (req.user.role === 'student') {
+      const debugQuery = `
+        SELECT s.id, s.is_active, s.course_id 
+        FROM attendance_sessions s
+        JOIN course_students cs ON s.course_id = cs.course_id
+        WHERE cs.student_id = $1
+      `;
+      const debugResult = await runQuery('getActiveSessions.debugAllSessions', debugQuery, [req.user.id]);
+      console.log('\\n--- DEBUG: All Sessions for Student Courses ---');
+      debugResult.rows.forEach(row => {
+        console.log(`Session ID: ${row.id}, Course ID: ${row.course_id}, is_active: ${row.is_active} (Type: ${typeof row.is_active})`);
+      });
+      console.log('-----------------------------------------------\\n');
+    }
+    // -----------------------
+
     let query = `SELECT s.id, s.course_id, s.teacher_id, s.session_number, s.qr_token, s.token_expires_at, s.started_at, s.is_active,
                         c.name as course_name, c.code as course_code,
                         u.name as teacher_name,
@@ -303,6 +320,12 @@ const getActiveSessions = async (req, res) => {
     // If teacher, only show sessions for their courses
     if (req.user.role === 'teacher') {
       query += ' AND s.teacher_id = $1';
+      params.push(req.user.id);
+    } else if (req.user.role === 'student') {
+      // For students, ONLY query sessions of courses they are actively enrolled in
+      query += ` AND s.course_id IN (
+        SELECT course_id FROM course_students WHERE student_id = $1
+      )`;
       params.push(req.user.id);
     }
 
