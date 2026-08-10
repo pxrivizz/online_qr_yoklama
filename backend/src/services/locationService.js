@@ -76,6 +76,7 @@ function isWithinAllowedNetwork(studentIP, allowedIpRange) {
     // Parse CIDR notation
     const [network, prefixStr] = allowedIpRange.split('/');
     const prefix = parseInt(prefixStr, 10);
+    if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) return { valid: false };
 
     // Convert IP strings to binary
     const studentBinary = ipToBinary(studentIP);
@@ -87,7 +88,7 @@ function isWithinAllowedNetwork(studentIP, allowedIpRange) {
     }
 
     // Compare first 'prefix' bits
-    const mask = (0xffffffff << (32 - prefix)) >>> 0; // Unsigned right shift
+    const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
     const studentMasked = studentBinary & mask;
     const networkMasked = networkBinary & mask;
 
@@ -103,6 +104,8 @@ function isWithinAllowedNetwork(studentIP, allowedIpRange) {
  * @private
  */
 function ipToBinary(ipStr) {
+  if (typeof ipStr !== 'string') return null;
+  if (ipStr.startsWith('::ffff:')) ipStr = ipStr.slice(7);
   const parts = ipStr.split('.');
   if (parts.length !== 4) {
     return null;

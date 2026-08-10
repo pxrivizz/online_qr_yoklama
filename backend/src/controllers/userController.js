@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
+const { hashPassword } = require('../services/passwordService');
 
 const getAllUsers = async (req, res) => {
   try {
@@ -29,7 +30,7 @@ const getAllUsers = async (req, res) => {
     const result = await pool.query(query, params);
     return res.json(result.rows);
   } catch (error) {
-    console.error('Get all users error:', error);
+    console.error('Get all users error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -54,7 +55,7 @@ const getUserById = async (req, res) => {
 
     return res.json(result.rows[0]);
   } catch (error) {
-    console.error('Get user by ID error:', error);
+    console.error('Get user by ID error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -73,12 +74,12 @@ const createUser = async (req, res) => {
       `INSERT INTO users (id, name, email, password, role, student_number)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, email, role, student_number, created_at`,
-      [userId, name, email, password, role, student_number || null]
+      [userId, name.trim(), email.trim().toLowerCase(), await hashPassword(password), role, student_number || null]
     );
 
     return res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Create user error:', error);
+    console.error('Create user error:', error.code || error.name || 'UNKNOWN');
     if (error.code === '23505') {
       // Unique constraint violation (duplicate email)
       return res.status(409).json({ error: 'Email already exists' });
@@ -125,7 +126,7 @@ const updateUser = async (req, res) => {
 
     if (password !== undefined) {
       updates.push(`password = $${paramCount}`);
-      values.push(password);
+      values.push(await hashPassword(password));
       paramCount++;
     }
 
@@ -157,7 +158,7 @@ const updateUser = async (req, res) => {
     const result = await pool.query(query, values);
     return res.json(result.rows[0]);
   } catch (error) {
-    console.error('Update user error:', error);
+    console.error('Update user error:', error.code || error.name || 'UNKNOWN');
     if (error.code === '23505') {
       return res.status(409).json({ error: 'Email already exists' });
     }
@@ -183,7 +184,7 @@ const deleteUser = async (req, res) => {
     await pool.query('DELETE FROM users WHERE id = $1', [id]);
     return res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Delete user error:', error);
+    console.error('Delete user error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -199,7 +200,8 @@ const bulkCreateStudents = async (req, res) => {
     let createdCount = 0;
     let skippedCount = 0;
 
-    const studentsWithData = students.map((student) => {
+    if (students.length > 500) return res.status(400).json({ error: 'At most 500 students can be created at once' });
+    const studentsWithData = await Promise.all(students.map(async (student) => {
       const { name, email, password, student_number } = student;
 
       if (!name || !email || !password) {
@@ -210,11 +212,11 @@ const bulkCreateStudents = async (req, res) => {
         id: uuidv4(),
         name,
         email,
-        password: password,
+        password: await hashPassword(password),
         role: 'student',
         student_number: student_number || null,
       };
-    });
+    }));
 
     // Insert all students with ON CONFLICT
     const insertQuery = `
@@ -236,8 +238,8 @@ const bulkCreateStudents = async (req, res) => {
       total_attempted: students.length,
     });
   } catch (error) {
-    console.error('Bulk create students error:', error);
-    return res.status(500).json({ error: error.message || 'Server error' });
+    console.error('Bulk create students error:', error.code || error.name || 'UNKNOWN');
+    return res.status(500).json({ error: 'Server error' });
   }
 };
 

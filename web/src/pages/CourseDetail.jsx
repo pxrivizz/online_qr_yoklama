@@ -188,7 +188,7 @@ export const CourseDetail = () => {
         const hasAttended = student.attendances?.some(
           (att) => Number(att.session_number) === i
         );
-        row.push(hasAttended ? '✅' : '');
+        row.push(hasAttended ? '+' : '');
       }
 
       row.push(`${totalAttended} / ${totalSessions}`, `%${percentage}`);
@@ -431,6 +431,7 @@ export const CourseDetail = () => {
               className="gap-2"
               onClick={() => setActiveTab('sessions')}
             >
+              <div></div>
               <QrCode size={18} />
               Yoklama Oturumları
             </Button>

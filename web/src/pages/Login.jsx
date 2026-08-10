@@ -6,11 +6,6 @@ import toast from 'react-hot-toast';
 import { GoogleLogin } from '@react-oauth/google';
 import { GraduationCap, AlertCircle, User, X, QrCode } from 'lucide-react';
 
-const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '630910368260-49do92os2tnu416lsv1qko5btdnccrik.apps.googleusercontent.com';
-if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
-  console.warn('VITE_GOOGLE_CLIENT_ID is not set. Using fallback client ID.');
-}
-
 export const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

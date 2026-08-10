@@ -1,0 +1,27 @@
+# Yapılan Değişiklikler
+
+- **web/src/main.jsx, web/src/pages/Login.jsx, web/.env.example**: Google OAuth Client ID için hardcoded fallback kaldırıldı ve eksik yapılandırmanın başlangıçta açıkça hata vermesi sağlandı; frontend ortam değişkenleri belgelendi.
+- **web/src/pages/student/QRScanner.jsx**: Kamera yaşam döngüsü tek stream olacak şekilde yenilendi; HTTPS/API/izin/cihaz hataları ayrıştırıldı ve çoklu kamera için manuel seçim eklendi. Arka kamera tercihi `facingMode` ile başlatılıp gerçek `deviceId` üzerinden sabitlenerek iOS Safari, Android Chrome ve WebView uyumluluğu iyileştirildi.
+- **backend/src/services/qrService.js**: QR tokenları ayrı `QR_SECRET`, issuer, audience ve benzersiz JWT kimliğiyle imzalanıp doğrulanır hale getirildi. Auth tokenının QR imzası için tekrar kullanılması engellendi.
+- **backend/src/controllers/attendanceController.js**: QR’nin veritabanı son kullanma zamanı ve aktif token eşleşmesi kayıt anında atomik olarak kontrol edildi; yalnız derse kayıtlı öğrencilerin yoklama vermesi sağlandı. NAT adresini cihaz sayan yanlış kontrol kaldırıldı, reddedilen yoklamanın güvenli biçimde yeniden denenmesi ve transaction’lı manuel toggle eklendi.
+- **backend/src/app.js**: Yoklama ve giriş rotalarına özel hız sınırları, gövde boyutu sınırı, güvenlik başlıkları, ortamdan yönetilen CORS, JSON 404 ve merkezi hata yakalama eklendi.
+- **backend/src/middleware/validateMiddleware.js, backend/src/middleware/requestValidators.js, backend/src/routes**: Doğrulama hataları standart 400 yanıtlarına dönüştürüldü; auth, kullanıcı, ders, oturum, yoklama, query, UUID ve toplu veri girdilerine biçim, uzunluk ve adet kontrolleri eklendi.
+- **backend/src/services/passwordService.js**: Parolalar Node.js `scrypt` ile salt’lı olarak saklanır hale getirildi; eski düz metin parolalar başarılı ilk girişte otomatik yükseltiliyor.
+- **backend/src/controllers/authController.js**: Parola doğrulaması güvenli servise taşındı; JWT issuer/audience ve güvenli varsayılan süre eklendi.
+- **backend/src/controllers/userController.js**: Tekli, toplu ve profil parola yazımları hash’lenir hale getirildi; toplu kullanıcı ekleme 500 kayıtla sınırlandı ve e-posta normalize edildi.
+- **backend/src/middleware/authMiddleware.js**: Uygulama JWT’lerinde algoritma, issuer ve audience doğrulaması zorunlu hale getirildi; silinen veya rolü değiştirilen kullanıcıların eski tokenla yetki kullanması engellendi.
+- **backend/src/middleware/resourceAuthMiddleware.js**: Ders kaynakları için öğretmen sahipliği ve öğrenci kayıt kontrolü merkezi middleware olarak eklendi.
+- **backend/src/routes/courseRoutes.js**: Ders detayı, öğrenci listesi, kayıt, içe/dışa aktarma ve silme işlemlerine kaynak bazlı yetkilendirme eklendi.
+- **backend/src/controllers/courseController.js**: Ders listeleri role göre sınırlandı; öğrenciler yalnız kayıtlı oldukları, öğretmenler yalnız sahibi oldukları dersleri görebiliyor. Toplu öğrenci kayıtlarında N+1 okumalar azaltıldı ve yazımlar atomik hale getirildi.
+- **backend/src/routes/userRoutes.js**: Avatar yüklemeleri JPEG, PNG ve WebP ile sınırlandı; MIME bilgisinin yanında gerçek dosya imzası doğrulandı ve güvenli sunucu dosya adı üretildi.
+- **backend/src/routes/attendanceRoutes.js**: Excel yüklemelerine 5 MB, tek dosya ve izin verilen spreadsheet MIME türü sınırları eklendi; QR hız sınırı IP yerine doğrulanmış öğrenci kimliğine bağlandı.
+- **backend/src/models/schema.sql**: Sabit admin hesabı ve düz metin parola kaldırıldı; zaman alanları `TIMESTAMPTZ` yapıldı, sorgu indeksleri, numaralı oturum benzersizliği ve ders başına tek aktif oturum kuralı eklendi.
+- **backend/src/config/env.js, backend/server.js, backend/.env.example**: Tüm zorunlu DB, CORS, Google ve secret ayarları başlangıçta doğrulanır hale getirildi; zayıf/eşit secretlar reddedildi ve dotenv bilgilendirme çıktısı susturuldu.
+- **backend/src/config/db.js**: PostgreSQL/Supabase havuz boyutu, bağlantı/idle/sorgu timeoutları ve SSL ayarları ortam değişkenlerine bağlandı; pool hataları secret sızdırmadan ele alındı.
+- **backend/src/controllers/sessionController.js**: QR ve sorgu parametrelerini yazan debug logları kaldırıldı; aktif oturum listeleri role ve ders kaydına göre sınırlandı, internal DB mesajlarının response’a sızması engellendi.
+- **backend/src/services/spreadsheetService.js, backend/src/services/exportService.js**: Excel hücrelerinde formula injection’a karşı kullanıcı girdileri güvenli metne dönüştürüldü; kullanılmayan ve hatalı eski öğrenci import akışı kaldırıldı.
+- **backend/src/services/importService.js**: Excel satır limiti eklendi; kayıtlı öğrenciler toplu sorgulandı ve kayıtlı olmayanlar tahmin edilebilir parolalı hesap yerine transaction içinde pending enrollment olarak saklandı. Düzeltmesi olmayan güvenlik açıklarına sahip `xlsx` yerine `exceljs` kullanıldı.
+- **backend/package.json, backend/package-lock.json**: Açık `xlsx` bağımlılığı kaldırıldı, güvenli transitif sürümler sabitlendi ve production `npm audit` sonucu sıfır açığa indirildi.
+- **backend/test/security.test.js**: Parola hashleme, QR claim doğrulama, spreadsheet formula koruması ve CIDR kontrolleri için çalışır güvenlik regresyon testleri eklendi.
+- **.gitignore**: Tüm `.env` varyantları git takibinden çıkarıldı, yalnız `.env.example` dosyalarına açık istisna bırakıldı.
+- **backend/src/services/locationService.js, backend/src/controllers/attendanceController.js**: İstemci IP’si güvenilir Express proxy çözümlemesinden alınır hale getirildi; dış VPN kontrolüne URL kodlama ve iki saniyelik timeout eklendi.

@@ -11,7 +11,9 @@ async function markAttendance(req, res) {
     const studentId = req.user.id;
 
     // Validate required fields
-    if (!qr_token || latitude === undefined || longitude === undefined) {
+    const parsedLatitude = Number(latitude);
+    const parsedLongitude = Number(longitude);
+    if (!qr_token || typeof qr_token !== 'string' || qr_token.length > 4096 || !Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude) || parsedLatitude < -90 || parsedLatitude > 90 || parsedLongitude < -180 || parsedLongitude > 180) {
       return res.status(400).json({
         error: 'Missing required fields: qr_token, latitude, longitude',
       });
@@ -32,11 +34,11 @@ async function markAttendance(req, res) {
     }
 
     const sessionId = tokenPayload.sessionId;
-    const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const clientIP = req.ip || 'unknown';
 
     // Step 2: Get session details
     const sessionResult = await pool.query(
-      `SELECT s.id, s.is_active, s.course_id, s.qr_token as active_token, c.allowed_ssid, c.allowed_ip_range, 
+      `SELECT s.id, s.is_active, s.course_id, s.qr_token as active_token, s.token_expires_at, c.allowed_ssid, c.allowed_ip_range,
               c.allowed_latitude, c.allowed_longitude, c.allowed_radius_meters
        FROM attendance_sessions s
        JOIN courses c ON s.course_id = c.id
@@ -54,50 +56,29 @@ async function markAttendance(req, res) {
       return res.status(400).json({ error: 'Session is not active' });
     }
 
+    if (new Date(session.token_expires_at).getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'Invalid or expired QR token' });
+    }
+
     if (session.active_token !== qr_token) {
       return res.status(400).json({ success: false, rejection_reason: 'QR kodu zaten kullanılmış veya süresi dolmuş' });
     }
 
-    // Step 3: Check for duplicate attendance
-    const duplicateResult = await pool.query(
-      `SELECT id FROM attendances WHERE session_id = $1 AND student_id = $2`,
-      [sessionId, studentId]
+    const enrollment = await pool.query(
+      'SELECT 1 FROM course_students WHERE course_id = $1 AND student_id = $2',
+      [session.course_id, studentId]
     );
-
-    if (duplicateResult.rows.length > 0) {
-      return res
-        .status(409)
-        .json({ error: 'Student has already marked attendance for this session' });
+    if (enrollment.rows.length === 0) {
+      return res.status(403).json({ error: 'Student is not enrolled in this course' });
     }
 
-    // Step 4: IP and VPN checks
-    // 4a. Check if same student already attended from different IP
-    const studentIPCheck = await pool.query(
-      'SELECT student_ip FROM attendances WHERE session_id=$1 AND student_id=$2 AND is_valid=true',
-      [session.id, req.user.id]
-    );
-    if (studentIPCheck.rows.length > 0 && studentIPCheck.rows[0].student_ip !== clientIP) {
-      return res.status(403).json({
-        success: false,
-        rejection_reason: 'Farklı bir ağdan tekrar yoklama yapılamaz'
-      });
-    }
-
-    // 4b. Check if different student already used this IP
-    const ipCheck = await pool.query(
-      'SELECT student_id FROM attendances WHERE session_id=$1 AND student_ip=$2 AND is_valid=true',
-      [session.id, clientIP]
-    );
-    if (ipCheck.rows.length > 0 && ipCheck.rows[0].student_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        rejection_reason: 'Bu cihazdan zaten başka bir öğrenci yoklamaya katıldı'
-      });
-    }
-
-    // 4c. Check VPN/proxy via external API
+    // Step 3: IP and VPN checks
+    // Public IP addresses identify a network/NAT, not a physical device. Student identity
+    // and the database uniqueness constraint provide the reliable duplicate protection.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
     try {
-      const vpnCheck = await fetch(`https://ipapi.co/${clientIP}/json/`);
+      const vpnCheck = await fetch(`https://ipapi.co/${encodeURIComponent(clientIP)}/json/`, { signal: controller.signal });
       const ipData = await vpnCheck.json();
       if (ipData.threat?.is_vpn || ipData.threat?.is_proxy || ipData.threat?.is_tor) {
         return res.status(403).json({
@@ -105,9 +86,11 @@ async function markAttendance(req, res) {
           rejection_reason: 'VPN veya proxy kullanarak yoklama yapılamaz'
         });
       }
-    } catch (e) {
+    } catch (error) {
       // If VPN check fails, continue (don't block)
-      console.log('VPN check skipped:', e.message);
+      console.warn('VPN check unavailable');
+    } finally {
+      clearTimeout(timeout);
     }
 
     // Step 5: Validate network
@@ -124,10 +107,16 @@ async function markAttendance(req, res) {
       // Insert invalid attendance record
       const resultInvalid = await pool.query(
         `INSERT INTO attendances (id, session_id, student_id, student_latitude, student_longitude, student_ip, is_valid, rejection_reason, marked_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, false, $6, NOW())
+         SELECT gen_random_uuid(), $1, $2, $3, $4, $5, false, $6, NOW()
+         FROM attendance_sessions s WHERE s.id = $1 AND s.is_active = true AND s.qr_token = $7 AND s.token_expires_at > NOW()
+         ON CONFLICT (session_id, student_id) DO UPDATE SET
+           student_latitude = EXCLUDED.student_latitude, student_longitude = EXCLUDED.student_longitude,
+           student_ip = EXCLUDED.student_ip, is_valid = false, rejection_reason = EXCLUDED.rejection_reason, marked_at = NOW()
+         WHERE attendances.is_valid = false
          RETURNING id, is_valid, rejection_reason, marked_at`,
-        [sessionId, studentId, latitude, longitude, clientIP, 'Outside allowed network']
+        [sessionId, studentId, parsedLatitude, parsedLongitude, clientIP, 'Outside allowed network', qr_token]
       );
+      if (!resultInvalid.rows.length) return res.status(409).json({ error: 'Student has already marked attendance for this session' });
 
       return res.status(200).json({
         success: true,
@@ -147,8 +136,8 @@ async function markAttendance(req, res) {
       session.allowed_longitude !== null
     ) {
       const locationCheck = locationService.isWithinAllowedLocation(
-        latitude,
-        longitude,
+        parsedLatitude,
+        parsedLongitude,
         session.allowed_latitude,
         session.allowed_longitude,
         session.allowed_radius_meters || 100
@@ -166,10 +155,16 @@ async function markAttendance(req, res) {
       // Insert invalid attendance record
       const resultInvalid = await pool.query(
         `INSERT INTO attendances (id, session_id, student_id, student_latitude, student_longitude, student_ip, is_valid, rejection_reason, marked_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, false, $6, NOW())
+         SELECT gen_random_uuid(), $1, $2, $3, $4, $5, false, $6, NOW()
+         FROM attendance_sessions s WHERE s.id = $1 AND s.is_active = true AND s.qr_token = $7 AND s.token_expires_at > NOW()
+         ON CONFLICT (session_id, student_id) DO UPDATE SET
+           student_latitude = EXCLUDED.student_latitude, student_longitude = EXCLUDED.student_longitude,
+           student_ip = EXCLUDED.student_ip, is_valid = false, rejection_reason = EXCLUDED.rejection_reason, marked_at = NOW()
+         WHERE attendances.is_valid = false
          RETURNING id, is_valid, rejection_reason, marked_at`,
-        [sessionId, studentId, latitude, longitude, clientIP, locationReason]
+        [sessionId, studentId, parsedLatitude, parsedLongitude, clientIP, locationReason, qr_token]
       );
+      if (!resultInvalid.rows.length) return res.status(409).json({ error: 'Student has already marked attendance for this session' });
 
       return res.status(200).json({
         success: true,
@@ -182,16 +177,21 @@ async function markAttendance(req, res) {
     // Step 7: Mark valid attendance
     const resultValid = await pool.query(
       `INSERT INTO attendances (id, session_id, student_id, student_latitude, student_longitude, student_ip, is_valid, marked_at)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW())
+       SELECT gen_random_uuid(), $1, $2, $3, $4, $5, true, NOW()
+       FROM attendance_sessions s
+       JOIN course_students cs ON cs.course_id = s.course_id AND cs.student_id = $2
+       WHERE s.id = $1 AND s.is_active = true AND s.qr_token = $6 AND s.token_expires_at > NOW()
+       ON CONFLICT (session_id, student_id) DO UPDATE SET
+         student_latitude = EXCLUDED.student_latitude, student_longitude = EXCLUDED.student_longitude,
+         student_ip = EXCLUDED.student_ip, is_valid = true, rejection_reason = null, marked_at = NOW()
+       WHERE attendances.is_valid = false
        RETURNING id, is_valid, rejection_reason, marked_at`,
-      [sessionId, studentId, latitude, longitude, clientIP]
+      [sessionId, studentId, parsedLatitude, parsedLongitude, clientIP, qr_token]
     );
 
-    // Step 8: Invalidate the used QR token so it can't be reused
-    await pool.query(
-      "UPDATE attendance_sessions SET qr_token = $1, token_expires_at = now() WHERE id = $2",
-      [`used_${Date.now()}`, session.id]
-    );
+    if (resultValid.rows.length === 0) {
+      return res.status(409).json({ error: 'Student has already marked attendance for this session' });
+    }
 
     return res.status(201).json({
       success: true,
@@ -200,7 +200,7 @@ async function markAttendance(req, res) {
       marked_at: resultValid.rows[0].marked_at,
     });
   } catch (error) {
-    console.error('Error marking attendance:', error);
+    console.error('Error marking attendance:', error.code || error.name || 'UNKNOWN');
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -235,7 +235,7 @@ async function getMyAttendances(req, res) {
 
     res.status(200).json(result.rows);
   } catch (error) {
-    console.error('Error fetching student attendances:', error);
+    console.error('Error fetching student attendances:', error.code || error.name || 'UNKNOWN');
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -290,7 +290,7 @@ async function getAttendanceSummary(req, res) {
 
     res.status(200).json(result.rows);
   } catch (error) {
-    console.error('Error fetching attendance summary:', error);
+    console.error('Error fetching attendance summary:', error.code || error.name || 'UNKNOWN');
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -320,32 +320,21 @@ async function markManualAttendance(req, res) {
       return res.status(403).json({ error: 'You do not have permission to update this session' });
     }
 
-    let marked_count = 0;
-    let skipped_count = 0;
-
-    for (const studentId of student_ids) {
-      const checkResult = await pool.query(
-        'SELECT id FROM attendances WHERE session_id = $1 AND student_id = $2',
-        [session_id, studentId]
-      );
-
-      if (checkResult.rows.length > 0) {
-        skipped_count++;
-        continue;
-      }
-
-      await pool.query(
-        `INSERT INTO attendances (id, session_id, student_id, student_latitude, student_longitude, student_ip, is_valid, rejection_reason, marked_at)
-         VALUES (gen_random_uuid(), $1, $2, null, null, 'manual', true, null, NOW())`,
-        [session_id, studentId]
-      );
-
-      marked_count++;
-    }
+    const inserted = await pool.query(
+      `INSERT INTO attendances (id, session_id, student_id, student_ip, is_valid, marked_at)
+       SELECT gen_random_uuid(), $1, requested.student_id, 'manual', true, NOW()
+       FROM unnest($2::uuid[]) AS requested(student_id)
+       JOIN course_students cs ON cs.student_id = requested.student_id AND cs.course_id = $3
+       ON CONFLICT (session_id, student_id) DO NOTHING
+       RETURNING id`,
+      [session_id, student_ids, session.course_id]
+    );
+    const marked_count = inserted.rowCount;
+    const skipped_count = student_ids.length - marked_count;
 
     return res.status(200).json({ marked_count, skipped_count });
   } catch (error) {
-    console.error('Error marking manual attendance:', error);
+    console.error('Error marking manual attendance:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -482,12 +471,14 @@ async function getStudentAttendanceSummary(req, res) {
       students
     });
   } catch (error) {
-    console.error('Error getting student attendance summary:', error);
+    console.error('Error getting student attendance summary:', error.code || error.name || 'UNKNOWN');
     res.status(500).json({ error: 'Internal server error' });
   }
 }
 
 async function toggleManualAttendance(req, res) {
+  const client = await pool.connect();
+  let transactionStarted = false;
   try {
     const { student_id, course_id, attendance_index } = req.body;
     const userId = req.user.id;
@@ -499,9 +490,12 @@ async function toggleManualAttendance(req, res) {
 
     // Check course ownership
     let teacherId = null;
-    const courseCheck = await pool.query(
-      `SELECT teacher_id FROM courses WHERE id = $1`,
-      [course_id]
+    const courseCheck = await client.query(
+      `SELECT c.teacher_id, EXISTS (
+         SELECT 1 FROM course_students cs WHERE cs.course_id = c.id AND cs.student_id = $2
+       ) AS is_enrolled
+       FROM courses c WHERE c.id = $1`,
+      [course_id, student_id]
     );
 
     if (courseCheck.rows.length === 0) {
@@ -515,56 +509,59 @@ async function toggleManualAttendance(req, res) {
         error: 'You do not have permission to edit attendance for this course',
       });
     }
+    if (!courseCheck.rows[0].is_enrolled) return res.status(400).json({ error: 'Student is not enrolled in this course' });
+
+    await client.query('BEGIN');
+    transactionStarted = true;
 
     const qrToken = `manual_${course_id}_${attendance_index}`;
 
     // Find or create manual session for this specific index
-    let sessionResult = await pool.query(
+    const sessionResult = await client.query(
       `INSERT INTO attendance_sessions 
          (id, course_id, teacher_id, qr_token, token_expires_at, is_active)
        VALUES 
          (gen_random_uuid(), $1, $2, $3, NOW(), false)
-       ON CONFLICT (qr_token) DO NOTHING
+       ON CONFLICT (qr_token) DO UPDATE SET qr_token = EXCLUDED.qr_token
        RETURNING id`,
       [course_id, teacherId, qrToken]
     );
 
-    let sessionId;
-    if (sessionResult.rows.length === 0) {
-      const existing = await pool.query(
-        `SELECT id FROM attendance_sessions WHERE qr_token = $1`,
-        [qrToken]
-      );
-      sessionId = existing.rows[0].id;
-    } else {
-      sessionId = sessionResult.rows[0].id;
-    }
+    const sessionId = sessionResult.rows[0].id;
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${sessionId}:${student_id}`]);
 
     // Check if attendance exists for this student + session
-    const attendanceCheck = await pool.query(
+    const attendanceCheck = await client.query(
       `SELECT id FROM attendances WHERE session_id = $1 AND student_id = $2`,
       [sessionId, student_id]
     );
 
     if (attendanceCheck.rows.length > 0) {
       // If exists: DELETE it (toggle off)
-      await pool.query(
+      await client.query(
         `DELETE FROM attendances WHERE session_id = $1 AND student_id = $2`,
         [sessionId, student_id]
       );
+      await client.query('COMMIT');
+      transactionStarted = false;
       return res.status(200).json({ attended: false });
     } else {
       // If not: INSERT it
-      await pool.query(
+      await client.query(
         `INSERT INTO attendances (id, session_id, student_id, student_ip, is_valid, marked_at)
          VALUES (gen_random_uuid(), $1, $2, 'manual', true, NOW())`,
         [sessionId, student_id]
       );
+      await client.query('COMMIT');
+      transactionStarted = false;
       return res.status(200).json({ attended: true });
     }
   } catch (error) {
-    console.error('Error toggling manual attendance:', error);
+    if (transactionStarted) await client.query('ROLLBACK');
+    console.error('Error toggling manual attendance:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 }
 

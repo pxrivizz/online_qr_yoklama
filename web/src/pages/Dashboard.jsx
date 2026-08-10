@@ -173,15 +173,13 @@ export const Dashboard = () => {
     return <StudentDashboard />;
   }
 
-  // Teacher/Admin Dashboard
   return (
     <div className="space-y-8">
       <div className="animate-slide-up">
-        <h1 className="page-title">Hoş Geldiniz {user?.name || 'Kullanıcı'}👋</h1>
+        <h1 className="page-title">Hoş Geldiniz, {user?.name || 'Kullanıcı'} 👋</h1>
         <p className="page-subtitle">Derslerini aşağıda görebilirsin.</p>
       </div>
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <StatCard
           icon={<BookOpen className="w-6 h-6" />}

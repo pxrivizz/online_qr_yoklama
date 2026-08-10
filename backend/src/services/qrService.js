@@ -7,8 +7,8 @@ const generateQRToken = (sessionId, courseId, sessionNumber) => {
 
   const token = jwt.sign(
     payload,
-    process.env.JWT_SECRET,
-    { expiresIn: '30s' }
+    process.env.QR_SECRET,
+    { expiresIn: '30s', issuer: 'qr-attend', audience: 'attendance-scan', jwtid: require('crypto').randomUUID() }
   );
   return token;
 };
@@ -18,7 +18,7 @@ const verifyQRToken = (token) => {
     throw new Error('QR token has already been used');
   }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.QR_SECRET, { issuer: 'qr-attend', audience: 'attendance-scan', algorithms: ['HS256'] });
     if (decoded.type !== 'qr') {
       throw new Error('Invalid token type');
     }

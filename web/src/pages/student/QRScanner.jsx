@@ -9,97 +9,106 @@ export const QRScanner = () => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const frameRef = useRef(null);
+  const redirectRef = useRef(null);
+  const scanningRef = useRef(true);
+  const qrHandlerRef = useRef(null);
 
-  const [isScanning, setIsScanning] = useState(true);
+  const [, setIsScanning] = useState(true);
   const [scanStatus, setScanStatus] = useState('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [courseName, setCourseName] = useState('');
+  const [cameras, setCameras] = useState([]);
+  const [selectedCamera, setSelectedCamera] = useState('');
+
+  const stopCamera = () => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
 
   useEffect(() => {
-    let animationFrameId;
-    let streamRef;
+    return () => {
+      stopCamera();
+      if (redirectRef.current) clearTimeout(redirectRef.current);
+    };
+  }, []);
 
-    const selectPreferredCamera = async () => {
-      if (!navigator.mediaDevices?.enumerateDevices) return null;
-
-      let devices = await navigator.mediaDevices.enumerateDevices();
-      let videoInputs = devices.filter((d) => d.kind === 'videoinput');
-
-      const labelsMissing = videoInputs.every((d) => !d.label);
-      if (labelsMissing) {
-        try {
-          const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          tempStream.getTracks().forEach((track) => track.stop());
-        } catch (e) {
-          // Ignore; fallback will use the first available camera.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (video && canvas && video.readyState >= 2 && scanningRef.current) {
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        if (width && height) {
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(video, 0, 0, width, height);
+          const imageData = ctx.getImageData(0, 0, width, height);
+          const code = jsQR(imageData.data, width, height, { inversionAttempts: 'attemptBoth' });
+          if (code) {
+            scanningRef.current = false;
+            setIsScanning(false);
+            stopCamera();
+            qrHandlerRef.current?.(code.data);
+            return;
+          }
         }
-        devices = await navigator.mediaDevices.enumerateDevices();
-        videoInputs = devices.filter((d) => d.kind === 'videoinput');
       }
-
-      const isExcludedLabel = (label) => {
-        const normalized = String(label || '').toLowerCase();
-        return normalized.includes('wide') || normalized.includes('ultrawide') || normalized.includes('ultra wide') || normalized.includes('macro');
-      };
-
-      const filtered = videoInputs.filter((d) => !isExcludedLabel(d.label));
-      const preferred = filtered.find((d) => /back|rear|environment/i.test(d.label));
-      const selected = preferred || filtered[0] || videoInputs[0];
-
-      return selected?.deviceId || null;
+      if (scanningRef.current) frameRef.current = requestAnimationFrame(tick);
     };
 
     const startCamera = async () => {
       try {
-        const deviceId = await selectPreferredCamera();
-        const constraints = deviceId
-          ? { video: { deviceId: { exact: deviceId } } }
-          : { video: { facingMode: 'environment' } };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        streamRef = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', true);
-          videoRef.current.play();
-          animationFrameId = requestAnimationFrame(tick);
-        }
+        if (!window.isSecureContext && location.hostname !== 'localhost') throw new Error('INSECURE_CONTEXT');
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('UNSUPPORTED');
+        stopCamera();
+        const video = selectedCamera
+          ? { deviceId: { exact: selectedCamera }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } };
+        const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+        if (cancelled) return stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = stream;
+        const devices = (await navigator.mediaDevices.enumerateDevices()).filter((item) => item.kind === 'videoinput');
+        setCameras(devices);
+        const activeId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+        if (!selectedCamera && activeId) setSelectedCamera(activeId);
+        videoRef.current.srcObject = stream;
+        videoRef.current.muted = true;
+        await videoRef.current.play();
+        scanningRef.current = true;
+        setIsScanning(true);
+        frameRef.current = requestAnimationFrame(tick);
       } catch (err) {
         console.error('Camera access error:', err);
-        toast.error('Kameraya erişilemedi. Lütfen izin verin.');
+        const messages = {
+          INSECURE_CONTEXT: 'Kamera için uygulamayı HTTPS üzerinden açın.',
+          UNSUPPORTED: 'Bu tarayıcı kamera erişimini desteklemiyor.',
+          NotAllowedError: 'Kamera izni reddedildi. Tarayıcı ayarlarından izin verin.',
+          NotFoundError: 'Kullanılabilir kamera bulunamadı.',
+          NotReadableError: 'Kamera başka bir uygulama tarafından kullanılıyor.',
+          OverconstrainedError: 'Seçilen kamera kullanılamıyor. Başka bir kamera seçin.',
+        };
+        const message = messages[err.message] || messages[err.name] || 'Kameraya erişilemedi.';
+        toast.error(message);
         setScanStatus('error');
-        setErrorMessage('Kamera erişim izni verilmedi.');
+        setErrorMessage(message);
       }
     };
-
-    const tick = () => {
-      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        const video = videoRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-        if (code && isScanning) {
-          setIsScanning(false);
-          handleQRCode(code.data);
-          return;
-        }
-      }
-      if (isScanning) { animationFrameId = requestAnimationFrame(tick); }
-    };
-
     startCamera();
     return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      if (streamRef) { streamRef.getTracks().forEach(track => track.stop()); }
+      cancelled = true;
+      stopCamera();
     };
-  }, [isScanning]);
+  }, [selectedCamera]);
 
-  const handleQRCode = (qrToken) => {
+  function handleQRCode(qrToken) {
     setScanStatus('processing');
     if (!navigator.geolocation) {
       setScanStatus('error');
@@ -131,9 +140,13 @@ export const QRScanner = () => {
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  };
+  }
 
-  const autoRedirect = () => { setTimeout(() => { navigate('/student/dashboard'); }, 3000); };
+  function autoRedirect() { redirectRef.current = setTimeout(() => navigate('/student/dashboard'), 3000); }
+
+  useEffect(() => {
+    qrHandlerRef.current = handleQRCode;
+  });
 
   return (
     <div className="relative min-h-screen bg-black text-white flex flex-col overflow-hidden">
@@ -168,6 +181,14 @@ export const QRScanner = () => {
               QR kodu kameraya gösterin
             </p>
           </div>
+        )}
+        {scanStatus === 'idle' && cameras.length > 1 && (
+          <label className="absolute bottom-8 left-4 right-4 z-30 mx-auto max-w-sm rounded-xl bg-black/70 p-3 text-sm">
+            Kamera
+            <select className="mt-1 w-full rounded-lg bg-white p-2 text-black" value={selectedCamera} onChange={(event) => setSelectedCamera(event.target.value)}>
+              {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Kamera ${index + 1}`}</option>)}
+            </select>
+          </label>
         )}
 
         {/* Processing */}

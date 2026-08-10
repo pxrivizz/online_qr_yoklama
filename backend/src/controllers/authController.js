@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { pool } = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
+const { hashPassword, verifyPassword } = require('../services/passwordService');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -23,17 +24,21 @@ const login = async (req, res) => {
     const user = result.rows[0];
 
     // Compare password directly
-    const isPasswordValid = password === user.password;
+    const passwordCheck = await verifyPassword(password, user.password);
+    const isPasswordValid = passwordCheck.valid;
 
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Geçersiz email veya şifre' });
+    }
+    if (passwordCheck.needsUpgrade) {
+      await pool.query('UPDATE users SET password = $1 WHERE id = $2', [await hashPassword(password), user.id]);
     }
 
     // Sign JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h', issuer: 'qr-attend-api', audience: 'qr-attend-client' }
     );
 
     return res.json({
@@ -47,8 +52,7 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login error details:', error.message, error.stack);
-    console.error('Login error:', error);
+    console.error('Login error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -69,14 +73,14 @@ const googleLogin = async (req, res) => {
         audience: process.env.GOOGLE_CLIENT_ID,
       });
     } catch (verifyError) {
-      console.error('Google token verification failed:', verifyError.message);
+      console.error('Google token verification failed');
       return res.status(401).json({ error: 'Geçersiz Google token.' });
     }
 
     const payload = ticket.getPayload();
     const { email, given_name, family_name, picture, sub: googleId } = payload;
 
-    if (!email) {
+    if (!email || payload.email_verified !== true) {
       return res.status(400).json({ error: 'Google hesabında email bulunamadı.' });
     }
 
@@ -97,7 +101,7 @@ const googleLogin = async (req, res) => {
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN }
+        { expiresIn: process.env.JWT_EXPIRES_IN || '8h', issuer: 'qr-attend-api', audience: 'qr-attend-client' }
       );
 
       return res.json({
@@ -125,13 +129,14 @@ const googleLogin = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Google login error:', error.message, error.stack);
+    console.error('Google login error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Google ile giriş sırasında bir hata oluştu.' });
   }
 };
 
 const registerStudent = async (req, res) => {
-  const client = await pool.connect();
+  let client;
+  let transactionStarted = false;
   try {
     const { credential, studentNumber } = req.body;
 
@@ -153,26 +158,26 @@ const registerStudent = async (req, res) => {
         audience: process.env.GOOGLE_CLIENT_ID,
       });
     } catch (verifyError) {
-      console.error('Google token verification failed:', verifyError.message);
+      console.error('Google token verification failed');
       return res.status(401).json({ error: 'Geçersiz veya süresi dolmuş Google token. Lütfen tekrar giriş yapın.' });
     }
 
     const payload = ticket.getPayload();
     const { email, given_name, family_name, picture } = payload;
 
-    if (!email) {
+    if (!email || payload.email_verified !== true) {
       return res.status(400).json({ error: 'Google hesabında email bulunamadı.' });
     }
 
     // 2. Check if user already exists (race condition guard)
-    const existingUser = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (existingUser.rows.length > 0) {
       // User was already created (possibly concurrent request) — log them in
       const user = existingUser.rows[0];
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN }
+        { expiresIn: process.env.JWT_EXPIRES_IN || '8h', issuer: 'qr-attend-api', audience: 'qr-attend-client' }
       );
       return res.json({
         token,
@@ -189,7 +194,7 @@ const registerStudent = async (req, res) => {
     }
 
     // 3. Check if student number is already taken by another account
-    const studentNumberCheck = await client.query(
+    const studentNumberCheck = await pool.query(
       'SELECT id, email FROM users WHERE student_number = $1',
       [trimmedStudentNumber]
     );
@@ -200,7 +205,9 @@ const registerStudent = async (req, res) => {
     }
 
     // Begin transaction for user creation + pending enrollment resolution
+    client = await pool.connect();
     await client.query('BEGIN');
+    transactionStarted = true;
 
     // 4. Create the new user with student number
     const userId = uuidv4();
@@ -239,18 +246,16 @@ const registerStudent = async (req, res) => {
         'DELETE FROM pending_enrollments WHERE student_number = $1',
         [trimmedStudentNumber]
       );
-      console.log(`Resolved ${resolvedCourseCount} pending enrollment(s) for student ${trimmedStudentNumber}`);
     }
 
     await client.query('COMMIT');
-
-    console.log(`New Google user registered: ${email} (student_number: ${trimmedStudentNumber})`);
+    transactionStarted = false;
 
     // 6. Generate internal JWT
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h', issuer: 'qr-attend-api', audience: 'qr-attend-client' }
     );
 
     return res.json({
@@ -266,11 +271,12 @@ const registerStudent = async (req, res) => {
       },
     });
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Register student error:', error.message, error.stack);
+    if (client && transactionStarted) await client.query('ROLLBACK');
+    console.error('Register student error:', error.code || error.name || 'UNKNOWN');
+    if (error.code === '23505') return res.status(409).json({ error: 'E-posta veya öğrenci numarası zaten kullanılıyor.' });
     return res.status(500).json({ error: 'Kayıt sırasında bir hata oluştu.' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -288,10 +294,9 @@ const getMe = async (req, res) => {
     const user = result.rows[0];
     return res.json({ user });
   } catch (error) {
-    console.error('Get me error:', error);
+    console.error('Get me error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
 
 module.exports = { login, googleLogin, registerStudent, getMe };
-

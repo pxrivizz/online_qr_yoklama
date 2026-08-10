@@ -8,10 +8,8 @@ import './index.css'
 import App from './App.jsx'
 
 const queryClient = new QueryClient()
-const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '630910368260-49do92os2tnu416lsv1qko5btdnccrik.apps.googleusercontent.com';
-if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
-  console.warn('VITE_GOOGLE_CLIENT_ID is not set in .env. Using fallback client ID.');
-}
+const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+if (!clientId) throw new Error('VITE_GOOGLE_CLIENT_ID must be configured');
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

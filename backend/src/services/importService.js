@@ -1,11 +1,20 @@
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 
 
-const parseEnrollmentExcel = (buffer) => {
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+const parseEnrollmentExcel = async (buffer) => {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet(1);
+  if (!worksheet) return { course_name: '', students: [] };
+
+  const rows = [];
+  const rowLimit = Math.min(worksheet.rowCount, 2001);
+  for (let rowNumber = 1; rowNumber <= rowLimit; rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    const values = [];
+    for (let column = 1; column <= worksheet.columnCount; column++) values.push(row.getCell(column).text || '');
+    rows.push(values);
+  }
 
   // Find course name (first non-empty, non-header row)
   let course_name = '';
@@ -41,6 +50,7 @@ const parseEnrollmentExcel = (buffer) => {
 
   // 4. Parse data rows after header
   for (let i = headerIndex + 1; i < rows.length; i++) {
+    if (students.length >= 1000) throw new Error('Spreadsheet row limit exceeded');
     const row = rows[i];
     if (!row) continue;
 
@@ -61,19 +71,24 @@ const parseEnrollmentExcel = (buffer) => {
 };
 
 const importEnrollmentFromExcel = async (buffer, courseId, pool) => {
-  const { course_name, students } = parseEnrollmentExcel(buffer);
+  const { course_name, students } = await parseEnrollmentExcel(buffer);
 
   if (!students || students.length === 0) {
     return { error: 'Excel dosyasından öğrenci bulunamadı', course_id: courseId };
   }
 
-  // Verify course exists using provided courseId
-  const courseCheck = await pool.query(
-    'SELECT id, name FROM courses WHERE id = $1',
-    [courseId]
-  );
+  const client = await pool.connect();
+  let transactionStarted = false;
+  let courseCheck;
+  try {
+    courseCheck = await client.query('SELECT id, name FROM courses WHERE id = $1', [courseId]);
+  } catch (error) {
+    client.release();
+    throw error;
+  }
 
   if (courseCheck.rows.length === 0) {
+    client.release();
     return { error: 'Ders bulunamadı', course_id: courseId };
   }
 
@@ -83,44 +98,43 @@ const importEnrollmentFromExcel = async (buffer, courseId, pool) => {
   let skipped_count = 0;
   const errors = [];
 
-  for (const student of students) {
-    try {
-      const findResult = await pool.query(
-        'SELECT id FROM users WHERE student_number = $1',
-        [student.student_number]
-      );
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+    const numbers = students.map((student) => student.student_number);
+    const existingUsers = await client.query('SELECT id, student_number FROM users WHERE student_number = ANY($1::varchar[])', [numbers]);
+    const usersByNumber = new Map(existingUsers.rows.map((row) => [row.student_number, row.id]));
 
-      let studentId;
-      if (findResult.rows.length > 0) {
-        studentId = findResult.rows[0].id;
-        existing_count++;
-      } else {
-        const email = `${student.student_number}@posta.mu.edu.tr`;
-        const name = student.full_name;
-
-        const insertResult = await pool.query(
-          `INSERT INTO users (name, email, password, role, student_number)
-           VALUES ($1, $2, $3, 'student', $4)
-           ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
-           RETURNING id`,
-          [name, email, student.student_number, student.student_number]
+    for (const student of students) {
+      const studentId = usersByNumber.get(student.student_number);
+      if (studentId) {
+        await client.query(
+          `INSERT INTO course_students (course_id, student_id, is_mandatory, enrollment_type)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (course_id, student_id) DO UPDATE SET is_mandatory = EXCLUDED.is_mandatory, enrollment_type = EXCLUDED.enrollment_type`,
+          [courseId, studentId, student.is_mandatory, student.is_mandatory ? 'zorunlu' : 'alttan']
         );
-        studentId = insertResult.rows[0].id;
+        existing_count++;
+        enrolled_count++;
+      } else {
+        await client.query(
+          `INSERT INTO pending_enrollments (course_id, student_number, student_name, enrollment_type, is_mandatory)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (course_id, student_number) DO UPDATE SET student_name = EXCLUDED.student_name, enrollment_type = EXCLUDED.enrollment_type, is_mandatory = EXCLUDED.is_mandatory`,
+          [courseId, student.student_number, student.full_name, student.is_mandatory ? 'zorunlu' : 'alttan', student.is_mandatory]
+        );
         created_count++;
       }
-
-      await pool.query(
-        `INSERT INTO course_students (course_id, student_id, is_mandatory)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (course_id, student_id) DO UPDATE SET is_mandatory = EXCLUDED.is_mandatory`,
-        [courseId, studentId, student.is_mandatory]
-      );
-
-      enrolled_count++;
-    } catch (error) {
-      skipped_count++;
-      errors.push(`Öğrenci ${student.student_number} (${student.full_name}) eklenirken hata: ${error.message}`);
     }
+    await client.query('COMMIT');
+    transactionStarted = false;
+  } catch (error) {
+    if (transactionStarted) await client.query('ROLLBACK');
+    console.error('Enrollment import failed:', error.code || error.name || 'UNKNOWN');
+    skipped_count = students.length;
+    errors.push('Öğrenci listesi içe aktarılamadı');
+  } finally {
+    client.release();
   }
 
   return {

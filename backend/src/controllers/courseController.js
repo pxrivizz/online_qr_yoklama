@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { v4: uuidv4 } = require('uuid');
+const { sanitizeSpreadsheetCell } = require('../services/spreadsheetService');
 
 const createCourse = async (req, res) => {
   try {
@@ -61,7 +62,7 @@ const createCourse = async (req, res) => {
       created_at: course.created_at,
     });
   } catch (error) {
-    console.error('Create course error:', error);
+    console.error('Create course error:', error.code || error.name || 'UNKNOWN');
     if (error.code === '23505') {
       // Unique constraint violation (duplicate code)
       return res.status(400).json({ error: 'Course code already exists' });
@@ -72,6 +73,11 @@ const createCourse = async (req, res) => {
 
 const getCourses = async (req, res) => {
   try {
+    const filters = req.user.role === 'admin'
+      ? { clause: '', values: [] }
+      : req.user.role === 'teacher'
+        ? { clause: 'WHERE c.teacher_id = $1', values: [req.user.id] }
+        : { clause: 'JOIN course_students viewer_cs ON viewer_cs.course_id = c.id WHERE viewer_cs.student_id = $1', values: [req.user.id] };
     const result = await pool.query(
       `SELECT c.id, c.name, c.code, c.teacher_id, 
               u.name as teacher_name, c.allowed_ssid, c.allowed_ip_range, 
@@ -79,7 +85,8 @@ const getCourses = async (req, res) => {
               c.total_sessions_planned, c.created_at
        FROM courses c
        JOIN users u ON c.teacher_id = u.id
-       ORDER BY c.created_at DESC`
+       ${filters.clause}
+       ORDER BY c.created_at DESC`, filters.values
     );
 
     const courses = result.rows.map((course) => ({
@@ -99,7 +106,7 @@ const getCourses = async (req, res) => {
 
     return res.json(courses);
   } catch (error) {
-    console.error('Get courses error:', error);
+    console.error('Get courses error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -126,7 +133,7 @@ const getCourseById = async (req, res) => {
     if (row) row.total_sessions_planned = row.total_sessions_planned || 0;
     return res.json(row);
   } catch (error) {
-    console.error('Get course by id error:', error);
+    console.error('Get course by id error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -191,7 +198,7 @@ const updateCourse = async (req, res) => {
       created_at: course.created_at,
     });
   } catch (error) {
-    console.error('Update course error:', error);
+    console.error('Update course error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -228,7 +235,7 @@ const getCourseStudents = async (req, res) => {
 
     return res.json(allStudents);
   } catch (error) {
-    console.error('Get course students error:', error);
+    console.error('Get course students error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -297,9 +304,9 @@ const exportAttendance = async (req, res) => {
       const rate = totalSessions > 0 ? (attended / totalSessions) * 100 : 0;
 
       worksheet.addRow({
-        student_number: student.student_number || '-',
-        name: student.name,
-        email: student.email,
+        student_number: sanitizeSpreadsheetCell(student.student_number || '-'),
+        name: sanitizeSpreadsheetCell(student.name),
+        email: sanitizeSpreadsheetCell(student.email),
         total: totalSessions,
         attended: attended,
         rate: `%${rate.toFixed(2)}`,
@@ -328,7 +335,7 @@ const exportAttendance = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error('Export attendance error:', error);
+    console.error('Export attendance error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -337,6 +344,7 @@ const exportAttendance = async (req, res) => {
 
 const importCourseStudents = async (req, res) => {
   const client = await pool.connect();
+  let transactionStarted = false;
   try {
     const { id: courseId } = req.params;
     const { students } = req.body;
@@ -352,11 +360,19 @@ const importCourseStudents = async (req, res) => {
     }
 
     await client.query('BEGIN');
+    transactionStarted = true;
 
     let enrolledCount = 0;   // Already-registered students linked directly
     let updatedCount = 0;    // Existing enrollments updated
     let pendingCount = 0;    // Students not yet registered → stored as pending
     let skippedCount = 0;    // Rows without student_number
+
+    const studentNumbers = students.map((student) => String(student.student_number || '').trim()).filter(Boolean);
+    const registeredUsers = await client.query(
+      'SELECT id, student_number FROM users WHERE student_number = ANY($1::varchar[])',
+      [studentNumbers]
+    );
+    const usersByNumber = new Map(registeredUsers.rows.map((row) => [row.student_number, row.id]));
 
     for (const student of students) {
       const { student_number, name, is_mandatory, enrollment_type } = student;
@@ -373,37 +389,18 @@ const importCourseStudents = async (req, res) => {
       const mandatory = typeof is_mandatory === 'boolean' ? is_mandatory : true;
       const enrollType = enrollment_type || (mandatory ? 'zorunlu' : 'alttan');
 
-      // 1. Check if a registered user with this student_number exists
-      const userCheck = await client.query(
-        'SELECT id FROM users WHERE student_number = $1',
-        [trimmedNumber]
-      );
-
-      if (userCheck.rows.length > 0) {
+      const studentId = usersByNumber.get(trimmedNumber);
+      if (studentId) {
         // Student is registered — link them directly to the course
-        const studentId = userCheck.rows[0].id;
-
-        const enrollCheck = await client.query(
-          'SELECT 1 FROM course_students WHERE course_id = $1 AND student_id = $2',
-          [courseId, studentId]
+        const enrollment = await client.query(
+          `INSERT INTO course_students (course_id, student_id, is_mandatory, enrollment_type)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (course_id, student_id) DO UPDATE SET is_mandatory = EXCLUDED.is_mandatory, enrollment_type = EXCLUDED.enrollment_type
+           RETURNING (xmax = 0) AS inserted`,
+          [courseId, studentId, mandatory, enrollType]
         );
-
-        if (enrollCheck.rows.length === 0) {
-          await client.query(
-            `INSERT INTO course_students (course_id, student_id, is_mandatory, enrollment_type)
-             VALUES ($1, $2, $3, $4)`,
-            [courseId, studentId, mandatory, enrollType]
-          );
-          enrolledCount++;
-        } else {
-          // Update existing enrollment with fresh status from Excel
-          await client.query(
-            `UPDATE course_students SET is_mandatory = $1, enrollment_type = $2
-             WHERE course_id = $3 AND student_id = $4`,
-            [mandatory, enrollType, courseId, studentId]
-          );
-          updatedCount++;
-        }
+        if (enrollment.rows[0].inserted) enrolledCount++;
+        else updatedCount++;
       } else {
         // Student NOT registered yet — store as pending enrollment
         await client.query(
@@ -418,6 +415,7 @@ const importCourseStudents = async (req, res) => {
     }
 
     await client.query('COMMIT');
+    transactionStarted = false;
 
     return res.status(200).json({
       success: true,
@@ -428,8 +426,8 @@ const importCourseStudents = async (req, res) => {
       total: students.length,
     });
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Import course students error:', error);
+    if (transactionStarted) await client.query('ROLLBACK');
+    console.error('Import course students error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   } finally {
     client.release();
@@ -445,18 +443,26 @@ const enrollStudents = async (req, res) => {
       return res.status(400).json({ error: 'Student IDs must be an array' });
     }
 
-    for (const studentId of student_ids) {
-      await pool.query(
-        `INSERT INTO course_students (course_id, student_id, is_mandatory)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (course_id, student_id) DO UPDATE SET is_mandatory = $3`,
-        [courseId, studentId, is_mandatory !== undefined ? is_mandatory : true]
-      );
+    const result = await pool.query(
+      `WITH requested AS (SELECT DISTINCT unnest($3::uuid[]) AS student_id),
+       valid AS (SELECT requested.student_id FROM requested JOIN users u ON u.id = requested.student_id AND u.role = 'student'),
+       inserted AS (
+         INSERT INTO course_students (course_id, student_id, is_mandatory)
+         SELECT $1, valid.student_id, $2 FROM valid
+         WHERE (SELECT COUNT(*) FROM requested) = (SELECT COUNT(*) FROM valid)
+         ON CONFLICT (course_id, student_id) DO UPDATE SET is_mandatory = EXCLUDED.is_mandatory
+         RETURNING student_id
+       ) SELECT student_id FROM inserted`,
+      [courseId, is_mandatory !== undefined ? is_mandatory : true, student_ids]
+    );
+
+    if (result.rowCount !== new Set(student_ids).size) {
+      return res.status(400).json({ error: 'One or more student IDs are invalid or do not belong to students' });
     }
 
     return res.status(200).json({ success: true, message: 'Students enrolled successfully' });
   } catch (error) {
-    console.error('Enroll students error:', error);
+    console.error('Enroll students error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -468,7 +474,7 @@ const deleteCourse = async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Ders bulunamadı' });
     return res.status(200).json({ message: 'Ders silindi' });
   } catch (error) {
-    console.error('Delete course error:', error);
+    console.error('Delete course error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };

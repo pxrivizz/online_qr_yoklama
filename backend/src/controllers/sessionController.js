@@ -3,11 +3,6 @@ const { v4: uuidv4 } = require('uuid');
 const { generateQRToken } = require('../services/qrService');
 
 const runQuery = async (label, text, values) => {
-  console.log(`[DB QUERY] ${label}`, {
-    text,
-    values,
-  });
-
   return pool.query(text, values);
 };
 
@@ -63,50 +58,21 @@ const startSession = async (req, res) => {
     const qrToken = generateQRToken(sessionId, course_id, sessNum);
     const expiresAt = new Date(Date.now() + 30 * 1000);
 
-    console.log('[UPSERT DEBUG] attendance_sessions startSession payload:', {
-      id: sessionId,
-      course_id,
-      teacher_id: req.user.id,
-      session_number: sessNum,
-      qr_token: qrToken,
-      qr_token_length: qrToken ? qrToken.length : 0,
-      token_expires_at: expiresAt,
-      is_active: true,
-    });
-
-    // UPSERT: If (course_id, session_number) exists, UPDATE it. Otherwise, INSERT it.
+    // A unique database index protects this check against concurrent starts.
     const upsertQuery = `
       INSERT INTO attendance_sessions (id, course_id, teacher_id, session_number, qr_token, token_expires_at, is_active, started_at)
       VALUES ($1, $2, $3, $4, $5, $6, true, now())
-      ON CONFLICT (course_id, session_number) DO UPDATE SET
-        qr_token = $5,
-        token_expires_at = $6,
-        is_active = true,
-        started_at = now(),
-        ended_at = null,
-        teacher_id = $3
       RETURNING id, course_id, teacher_id, session_number, qr_token, token_expires_at, started_at, is_active
     `;
     const upsertValues = [sessionId, course_id, req.user.id, sessNum, qrToken, expiresAt];
-    
-    console.log('[UPSERT DEBUG] Executing UPSERT with:', {
-      sessionId,
-      course_id,
-      session_number: sessNum,
-      teacher_id: req.user.id,
-    });
 
     const result = await runQuery('startSession.upsertSession', upsertQuery, upsertValues);
 
-    console.log('[UPSERT DEBUG] UPSERT result:', {
-      rowCount: result.rows.length,
-      returnedSession: result.rows[0],
-    });
-
     return res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Start session error:', error);
-    return res.status(500).json({ message: error.message || 'Server error' });
+    console.error('Start session error:', error.code || error.name || 'UNKNOWN');
+    if (error.code === '23505') return res.status(409).json({ error: 'An active or numbered session already exists for this course' });
+    return res.status(500).json({ error: 'Server error' });
   }
 };
 
@@ -194,8 +160,9 @@ const generateSessionQR = async (req, res) => {
 
     return res.status(200).json(result.rows[0]);
   } catch (error) {
-    console.error('Generate session QR error:', error);
-    return res.status(500).json({ message: error.message || 'Database connection failed or server error' });
+    console.error('Generate session QR error:', error.code || error.name || 'UNKNOWN');
+    if (error.code === '23505') return res.status(409).json({ error: 'An active or numbered session already exists for this course' });
+    return res.status(500).json({ error: 'Server error' });
   }
 };
 
@@ -228,13 +195,6 @@ const refreshQRToken = async (req, res) => {
     const qrToken = generateQRToken(id, session.course_id, session.session_number);
     const expiresAt = new Date(Date.now() + 30 * 1000);
 
-    console.log('attendance_sessions update payload (refreshQRToken):', {
-      id,
-      qr_token: qrToken,
-      qr_token_length: qrToken ? qrToken.length : 0,
-      token_expires_at: expiresAt,
-    });
-
     const updateTokenQuery = `
       UPDATE attendance_sessions
       SET qr_token = $1,
@@ -250,7 +210,7 @@ const refreshQRToken = async (req, res) => {
 
     return res.json(result.rows[0]);
   } catch (error) {
-    console.error('Refresh QR token error:', error);
+    console.error('Refresh QR token error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -282,7 +242,7 @@ const endSession = async (req, res) => {
 
     return res.json(result.rows[0]);
   } catch (error) {
-    console.error('End session error:', error);
+    console.error('End session error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -314,27 +274,27 @@ const getSessionById = async (req, res) => {
 
     return res.json(session);
   } catch (error) {
-    console.error('Get session by ID error:', error);
+    console.error('Get session by ID error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
 
 const getActiveSessions = async (req, res) => {
   try {
-    console.log('JWT User Payload:', req.user);
-
-    const query = `
-      SELECT id, course_id, session_number, is_active
-      FROM attendance_sessions
-      WHERE is_active = true
-      ORDER BY started_at DESC
-    `;
-
-    const result = await runQuery('getActiveSessions.hardBypass', query, []);
-    console.log('Bypass DB Result:', result.rows);
+    const query = req.user.role === 'admin'
+      ? `SELECT id, course_id, session_number, is_active FROM attendance_sessions WHERE is_active = true ORDER BY started_at DESC`
+      : req.user.role === 'teacher'
+        ? `SELECT id, course_id, session_number, is_active FROM attendance_sessions WHERE is_active = true AND teacher_id = $1 ORDER BY started_at DESC`
+        : `SELECT s.id, s.course_id, s.session_number, s.is_active
+           FROM attendance_sessions s
+           JOIN course_students cs ON cs.course_id = s.course_id
+           WHERE s.is_active = true AND cs.student_id = $1
+           ORDER BY s.started_at DESC`;
+    const values = req.user.role === 'admin' ? [] : [req.user.id];
+    const result = await runQuery('getActiveSessions', query, values);
     return res.json(result.rows);
   } catch (error) {
-    console.error('Get active sessions error:', error);
+    console.error('Get active sessions error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -372,7 +332,7 @@ const getSessionAttendances = async (req, res) => {
 
     return res.json(result.rows);
   } catch (error) {
-    console.error('Get session attendances error:', error);
+    console.error('Get session attendances error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
@@ -402,7 +362,7 @@ const getCourseSessions = async (req, res) => {
 
     return res.json(result.rows);
   } catch (error) {
-    console.error('Get course sessions error:', error);
+    console.error('Get course sessions error:', error.code || error.name || 'UNKNOWN');
     return res.status(500).json({ error: 'Server error' });
   }
 };
